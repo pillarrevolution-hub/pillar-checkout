@@ -1,21 +1,21 @@
 import type { Config } from 'tailwindcss';
 
-// Identidad PILL.AR — la misma paleta del sistema Malvinas.
+// Paleta de la web de referencia (sim.pill.ar): navy profundo, celeste,
+// fondo claro azulado y amarillo para el badge de descuento.
 const config: Config = {
   content: ['./src/**/*.{ts,tsx}'],
   theme: {
     extend: {
       colors: {
-        profundo: '#0E3A4D', // Atlántico Profundo — color principal de marca
-        turba: '#14181B', // texto fuerte
-        hueso: '#F4F0E6', // fondo base
-        niebla: '#9DAFB6', // apoyo, líneas, captions
-        tussok: '#C1913A', // acento
-        linea: 'rgba(14,58,77,.14)',
+        navy: '#0E2238', // tarjeta oscura del precio
+        celeste: '#4da3ff', // acento (punto del logo, números de paso)
+        fondo: '#edf2f8', // fondo de página
+        tinta: '#16232f', // texto principal
       },
       fontFamily: {
         sans: ['var(--font-inter)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         archivo: ['var(--font-archivo)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        serif: ['Georgia', 'Cambria', '"Times New Roman"', 'serif'],
       },
     },
   },

@@ -28,9 +28,9 @@ export default async function Gracias({
     : null;
 
   return (
-    <div className="card p-8 text-center">
+    <div className="tarjeta text-center">
       <p className="mb-2 text-4xl">{pendiente ? '⏳' : '🎉'}</p>
-      <h1 className="font-archivo text-xl font-bold text-profundo">
+      <h1 className="font-serif text-3xl font-bold text-tinta">
         {pendiente ? 'Pago en proceso' : '¡Pago recibido!'}
       </h1>
       <p className="mt-2 text-sm text-slate-600">
@@ -41,7 +41,7 @@ export default async function Gracias({
       {wsp && !pendiente && (
         <a
           href={wsp}
-          className="btn mt-5 bg-[#25D366] text-white hover:bg-[#1fb457]"
+          className="mx-auto mt-5 block w-full max-w-sm rounded-xl bg-[#25D366] py-3 text-center text-[15px] font-bold text-white hover:bg-[#1fb457]"
           target="_blank"
           rel="noopener noreferrer"
         >
