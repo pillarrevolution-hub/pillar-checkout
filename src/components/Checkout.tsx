@@ -52,7 +52,16 @@ function fechaLarga(iso: string): string {
   return f.toLocaleDateString('es-AR', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long' });
 }
 
-export default function Checkout({ payload, p, t }: { payload: PayloadCheckout; p: string; t: string }) {
+export default function Checkout({
+  payload,
+  fuente,
+  whatsapp,
+}: {
+  payload: PayloadCheckout;
+  // link corto {c, t} o formato viejo {p, t} — va tal cual a /api/preferencia
+  fuente: { c: string; t: string } | { p: string; t: string };
+  whatsapp: string | null;
+}) {
   const [envio, setEnvio] = useState<OpcionEnvio | null>(null);
   const [pago, setPago] = useState<'transferencia' | 'contado' | 'cuotas' | null>(null);
   const [cargando, setCargando] = useState(false);
@@ -84,7 +93,7 @@ export default function Checkout({ payload, p, t }: { payload: PayloadCheckout; 
       const res = await fetch('/api/preferencia', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ p, t, envio, tipo }),
+        body: JSON.stringify({ ...fuente, envio, tipo }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.init_point) throw new Error(data?.error ?? 'No pudimos iniciar el pago');
@@ -104,13 +113,29 @@ export default function Checkout({ payload, p, t }: { payload: PayloadCheckout; 
         </h1>
         <p className="mt-1 text-sm text-slate-600">
           Acá está la cotización de tu <b>tratamiento personalizado</b> elaborado con tecnología
-          PILL.AR — cotización&nbsp;#{payload.o}.
+          PILL.AR.
         </p>
+        {/* La cotización primero (CEO 14-ago): el precio antes que nada,
+            con los dos beneficios a la vista */}
+        <div className="mt-3 rounded-xl bg-profundo/5 p-3">
+          <p className="font-archivo text-3xl font-extrabold leading-none text-profundo">
+            {formatoPeso(payload.tr)}
+          </p>
+          <p className="mt-1 text-xs font-bold text-green-700">
+            15% de descuento pagando contado · retiro sin cargo en farmacias adheridas
+          </p>
+          <p className="mt-0.5 text-xs text-slate-500">
+            o 3 cuotas sin interés de {formatoPeso(Math.round(payload.li / 3))} (total {formatoPeso(payload.li)})
+          </p>
+        </div>
         {payload.d && (
           <p className="mt-3 rounded-xl bg-profundo/5 px-3 py-2 text-sm font-semibold text-profundo">
             📦 Estimamos tenerlo listo el {fechaLarga(payload.d)}
           </p>
         )}
+        <p className="mt-3 text-[11px] text-slate-400">
+          Tu medicamento será elaborado por Nueva Farmacia Badra.
+        </p>
       </div>
 
       {/* Paso 1: envío */}
@@ -163,7 +188,7 @@ export default function Checkout({ payload, p, t }: { payload: PayloadCheckout; 
                 <span className="text-base font-black text-green-700">{formatoPeso(totales.contado)}</span>
               </span>
               <span className="mt-0.5 block text-xs text-green-700">
-                Te ahorrás {formatoPeso(totales.ahorro)} (15% OFF) — el precio más conveniente
+                15% de descuento por pago contado
               </span>
             </button>
             <button
@@ -177,7 +202,7 @@ export default function Checkout({ payload, p, t }: { payload: PayloadCheckout; 
                 <span className="text-base font-black text-profundo">{formatoPeso(totales.contado)}</span>
               </span>
               <span className="mt-0.5 block text-xs text-slate-500">
-                Mismo precio que transferencia, pagando con dinero en cuenta o débito
+                15% de descuento, pagando con dinero en cuenta o débito
               </span>
             </button>
             <button
@@ -187,7 +212,7 @@ export default function Checkout({ payload, p, t }: { payload: PayloadCheckout; 
               }`}
             >
               <span className="flex items-center justify-between gap-2 text-sm font-bold">
-                <span>💳 Mercado Pago — 3 cuotas</span>
+                <span>💳 Mercado Pago — 3 cuotas sin interés</span>
                 <span className="text-base font-black text-profundo">3 × {formatoPeso(totales.cuota)}</span>
               </span>
               <span className="mt-0.5 block text-xs text-slate-500">
@@ -230,9 +255,19 @@ export default function Checkout({ payload, p, t }: { payload: PayloadCheckout; 
                 </button>
               </div>
               <p className="rounded-xl border-l-4 border-l-tussok bg-tussok/10 p-3 text-xs leading-relaxed text-slate-700">
-                Cuando transfieras, <b>mandanos el comprobante por WhatsApp</b> (al mismo chat de
-                siempre) y arrancamos con la elaboración 🚀
+                Cuando transfieras, <b>mandanos el comprobante por WhatsApp</b> y arrancamos con la
+                elaboración 🚀
               </p>
+              {whatsapp && (
+                <a
+                  href={`https://wa.me/${whatsapp}?text=${encodeURIComponent('¡Hola! Ya hice la transferencia de mi tratamiento — te mando el comprobante 🏦')}`}
+                  className="btn bg-[#25D366] text-white hover:bg-[#1fb457]"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  📲 Mandar comprobante por WhatsApp
+                </a>
+              )}
             </div>
           ) : (
             <div className="space-y-3">

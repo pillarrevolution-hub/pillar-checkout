@@ -1,59 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { obtenerPago } from '@/lib/mp';
+import { avisarPagoAMalvinas } from '@/lib/aviso';
 
-// Webhook de Mercado Pago: cuando un pago queda APROBADO se le avisa a
-// Malvinas, que marca la cotización como PAGADA y libera las fórmulas a
-// producción (lo decidió Tomi: pago por MP = automático).
-//
-// MP puede avisar por query (?topic=payment&id=…) o por body
-// ({type:'payment', data:{id}}). Ante error al avisar a Malvinas se
-// devuelve 500 para que MP reintente solo.
-export async function POST(req: NextRequest) {
+// Webhook de Mercado Pago — el RESPALDO del circuito (la confirmación
+// principal la hace /gracias al volver del pago, porque en la primera
+// prueba real MP nunca llamó acá). Procesa POST y también GET con query
+// (formato IPN viejo), y ante error al avisar devuelve 500 para que MP
+// reintente solo. 409 de Malvinas (ya pagada) = dado por bueno.
+async function procesar(req: NextRequest): Promise<NextResponse> {
   const url = req.nextUrl;
-  const body = await req.json().catch(() => ({} as Record<string, unknown>));
+  const body = req.method === 'POST' ? await req.json().catch(() => ({} as Record<string, unknown>)) : {};
 
-  const tipo = (body as any)?.type ?? (body as any)?.topic ?? url.searchParams.get('topic') ?? url.searchParams.get('type');
-  const pagoId =
-    (body as any)?.data?.id ?? url.searchParams.get('data.id') ?? url.searchParams.get('id');
+  const tipo =
+    (body as any)?.type ?? (body as any)?.topic ?? url.searchParams.get('topic') ?? url.searchParams.get('type');
+  const pagoId = (body as any)?.data?.id ?? url.searchParams.get('data.id') ?? url.searchParams.get('id');
 
-  // Solo interesan los avisos de pagos.
   if (String(tipo) !== 'payment' || !pagoId) return NextResponse.json({ ok: true });
 
   const pago = await obtenerPago(String(pagoId));
-  if (!pago) return NextResponse.json({ ok: true }); // id desconocido: nada que hacer
-  if (pago.status !== 'approved') return NextResponse.json({ ok: true, status: pago.status });
+  if (!pago) return NextResponse.json({ ok: true });
 
-  // external_reference = "cotizacionId|envio|tipo" (lo puso la preferencia)
-  const [cotizacionId, envio, tipoPago] = String(pago.external_reference ?? '').split('|');
-  if (!cotizacionId || !Number.isFinite(Number(cotizacionId))) {
-    return NextResponse.json({ ok: true, nota: 'sin external_reference' });
-  }
-
-  const malvinas = (process.env.MALVINAS_URL ?? '').replace(/\/$/, '');
-  const secreto = process.env.CHECKOUT_SECRET ?? '';
-  if (!malvinas || !secreto) return NextResponse.json({ error: 'Falta MALVINAS_URL o CHECKOUT_SECRET' }, { status: 500 });
-
-  const res = await fetch(`${malvinas}/api/cotizaciones/${cotizacionId}/pagada-externa`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-checkout-secret': secreto },
-    body: JSON.stringify({
-      pagoId: pago.id,
-      monto: pago.transaction_amount,
-      metodo: pago.payment_method_id ?? pago.payment_type_id ?? 'mercadopago',
-      cuotas: pago.installments ?? 1,
-      envio: envio ?? '',
-      tipo: tipoPago ?? '',
-    }),
-  }).catch(() => null);
-
-  // 409 = ya estaba pagada (reintento de MP): dado por bueno.
-  if (!res || (!res.ok && res.status !== 409)) {
+  const resultado = await avisarPagoAMalvinas(pago);
+  console.log(`webhook: pago ${pagoId} status=${pago.status} aviso=${resultado}`);
+  if (resultado === 'error') {
     return NextResponse.json({ error: 'No se pudo avisar a Malvinas' }, { status: 500 });
   }
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, resultado });
 }
 
-// MP a veces prueba el endpoint con GET.
-export async function GET() {
-  return NextResponse.json({ ok: true });
+export async function POST(req: NextRequest) {
+  return procesar(req);
+}
+
+export async function GET(req: NextRequest) {
+  return procesar(req);
 }

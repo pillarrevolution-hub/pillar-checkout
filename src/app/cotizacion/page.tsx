@@ -1,10 +1,11 @@
 import { verificarLink } from '@/lib/firma';
+import { whatsappNumero } from '@/lib/datos';
 import Checkout from '@/components/Checkout';
 
 export const dynamic = 'force-dynamic';
 
-// La página del checkout: verifica la firma DEL LADO DEL SERVIDOR y recién
-// ahí muestra precios. Un link inválido o retocado no muestra nada.
+// Formato VIEJO del link (payload firmado en la URL): sigue andando para
+// los links ya mandados. Los nuevos usan el link corto /c/{id}/{firma}.
 export default function Cotizacion({ searchParams }: { searchParams: { p?: string; t?: string } }) {
   const payload = verificarLink(searchParams.p, searchParams.t);
 
@@ -21,5 +22,11 @@ export default function Cotizacion({ searchParams }: { searchParams: { p?: strin
     );
   }
 
-  return <Checkout payload={payload} p={searchParams.p!} t={searchParams.t!} />;
+  return (
+    <Checkout
+      payload={payload}
+      fuente={{ p: searchParams.p!, t: searchParams.t! }}
+      whatsapp={whatsappNumero()}
+    />
+  );
 }
