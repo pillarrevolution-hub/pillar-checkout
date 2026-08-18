@@ -4,7 +4,7 @@ import type { PayloadCheckout } from './firma';
 // Malvinas (checkout-data) con la firma como credencial. Si el precio se
 // editó después de mandar el link, acá llega el vigente; y si ya está
 // paga, viene marcado y el checkout no deja pagar de nuevo.
-export type DatosCheckout = PayloadCheckout & { pagada?: boolean };
+export type DatosCheckout = PayloadCheckout & { pagada?: boolean; comprobanteRecibido?: boolean };
 
 export async function obtenerDatos(id: string | number, t: string): Promise<DatosCheckout | null> {
   const base = (process.env.MALVINAS_URL ?? '').replace(/\/$/, '');

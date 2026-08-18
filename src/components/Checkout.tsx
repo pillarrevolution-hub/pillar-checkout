@@ -42,20 +42,31 @@ export default function Checkout({
   payload,
   fuente,
   whatsapp,
+  comprobanteRecibido = false,
 }: {
   payload: PayloadCheckout;
   // link corto {c, t} o formato viejo {p, t} — va tal cual a /api/preferencia
   fuente: { c: string; t: string } | { p: string; t: string };
   whatsapp: string | null;
+  // v2.3: el paciente ya subió un comprobante antes (link corto) — se
+  // muestra "en verificación" y puede subir otro si hace falta.
+  comprobanteRecibido?: boolean;
 }) {
-  // Como en la web de referencia: retiro y contado ya vienen elegidos.
+  // Como en la web de referencia: retiro ya viene elegido. La transferencia
+  // es la opción de pago inicial (v2.3, pedido de Tomi: "el alias está muy
+  // escondido") — el alias se ve de una, sin tener que buscarlo.
   const [recibe, setRecibe] = useState<'retiro' | 'envio'>('retiro');
   const [zona, setZona] = useState<'cordoba' | 'fuera' | null>(null);
-  const [pago, setPago] = useState<'contado' | 'cuotas'>('contado');
-  const [verTransferencia, setVerTransferencia] = useState(false);
+  const [pago, setPago] = useState<'transferencia' | 'mp' | 'cuotas'>('transferencia');
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
   const [copiado, setCopiado] = useState<'alias' | 'monto' | null>(null);
+  // Comprobante de transferencia (v2.3): el paciente lo sube acá mismo y
+  // queda guardado en el pedido; Atención verifica la plata y confirma.
+  const [archivo, setArchivo] = useState<File | null>(null);
+  const [subiendo, setSubiendo] = useState(false);
+  const [comprobanteListo, setComprobanteListo] = useState(false);
+  const [errorComprobante, setErrorComprobante] = useState('');
   // Datos de contacto (v2.2, pedido de Tomi): celular siempre; dirección
   // solo si eligió envío a domicilio. Se guardan en Malvinas apenas los
   // completa (al salir del campo) — si paga por transferencia no hay
@@ -115,7 +126,7 @@ export default function Checkout({
       const res = await fetch('/api/preferencia', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...fuente, envio, tipo: pago }),
+        body: JSON.stringify({ ...fuente, envio, tipo: pago === 'cuotas' ? 'cuotas' : 'contado' }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.init_point) throw new Error(data?.error ?? 'No pudimos iniciar el pago');
@@ -123,6 +134,55 @@ export default function Checkout({
     } catch (e: any) {
       setError(e.message ?? 'No pudimos iniciar el pago — probá de nuevo en un ratito');
       setCargando(false);
+    }
+  }
+
+  // Fotos de celular vienen de 5-10 MB y el límite del server es ~3.5 MB:
+  // las imágenes grandes se achican en el navegador (máx. 1800 px, JPEG)
+  // antes de subir. Los PDF van tal cual (con tope).
+  async function archivoABase64(file: File): Promise<{ base64: string; mime: string; nombre: string }> {
+    const esImagen = file.type === 'image/jpeg' || file.type === 'image/png';
+    if (esImagen && file.size > 900_000) {
+      const bitmap = await createImageBitmap(file);
+      const escala = Math.min(1, 1800 / Math.max(bitmap.width, bitmap.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(bitmap.width * escala);
+      canvas.height = Math.round(bitmap.height * escala);
+      canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+      return { base64: dataUrl.split(',')[1] ?? '', mime: 'image/jpeg', nombre: file.name.replace(/\.\w+$/, '') + '.jpg' };
+    }
+    if (file.size > 3_400_000) {
+      throw new Error('El archivo es muy pesado (máx. 3,5 MB). Probá con una foto o un PDF más liviano.');
+    }
+    const base64 = await new Promise<string>((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result).split(',')[1] ?? '');
+      r.onerror = reject;
+      r.readAsDataURL(file);
+    });
+    return { base64, mime: file.type, nombre: file.name };
+  }
+
+  async function enviarComprobante() {
+    if (!archivo) return;
+    setSubiendo(true);
+    setErrorComprobante('');
+    try {
+      await guardarContacto();
+      const { base64, mime, nombre } = await archivoABase64(archivo);
+      const res = await fetch('/api/comprobante', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...fuente, nombreArchivo: nombre, mime, datosBase64: base64 }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error ?? 'No pudimos subir el comprobante — probá de nuevo');
+      setComprobanteListo(true);
+    } catch (e: any) {
+      setErrorComprobante(e.message ?? 'No pudimos subir el comprobante — probá de nuevo');
+    } finally {
+      setSubiendo(false);
     }
   }
 
@@ -134,6 +194,15 @@ export default function Checkout({
       <p className="mt-2 text-[15px] text-slate-500">
         Preparada por el equipo de PILL.AR. Elegí cómo recibirlo y cómo pagarlo.
       </p>
+
+      {/* v2.3: ya subió un comprobante antes (dato vivo del link corto) */}
+      {comprobanteRecibido && !comprobanteListo && (
+        <div className="mt-4 rounded-xl border border-violet-200 bg-violet-50 p-4 text-[14px] leading-relaxed text-violet-900">
+          📎 <b>Ya recibimos tu comprobante</b> — lo estamos verificando y te confirmamos por
+          WhatsApp. Si necesitás subir otro (por ejemplo, si el primero salió mal), podés hacerlo
+          de nuevo acá abajo.
+        </div>
+      )}
 
       {/* La cotización primero (CEO): tarjeta navy con el precio */}
       <div className="mt-5 rounded-2xl bg-gradient-to-b from-[#0f2036] to-navy p-5 text-white">
@@ -227,21 +296,42 @@ export default function Checkout({
         <h2 className="text-lg font-bold">¿Cómo lo pagás?</h2>
       </div>
       <div className="mt-3 space-y-2.5">
+        {/* v2.3: la transferencia es una opción de primer nivel (antes el
+            alias quedaba escondido detrás de un link chico). */}
         <button
-          className={`opcion ${pago === 'contado' ? 'border-[#3d8ee7] bg-[#f2f8ff]' : 'border-slate-200 bg-white hover:border-slate-300'}`}
-          onClick={() => setPago('contado')}
+          className={`opcion ${pago === 'transferencia' ? 'border-[#3d8ee7] bg-[#f2f8ff]' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+          onClick={() => setPago('transferencia')}
         >
           <span className="flex items-start gap-3">
-            <Radio activo={pago === 'contado'} />
+            <Radio activo={pago === 'transferencia'} />
             <span>
               <span className="flex flex-wrap items-center gap-2 text-[15px] font-bold">
-                De contado — {formatoPeso(t.contado)}
+                🏦 Transferencia bancaria — {formatoPeso(t.contado)}
                 <span className="rounded-full bg-[#f2c94c] px-2 py-0.5 text-[11px] font-extrabold text-[#1c2430]">
                   15% OFF
                 </span>
               </span>
               <span className="block text-[13px] text-slate-500">
-                Solo por pagar de contado: transferencia bancaria o dinero en cuenta de Mercado Pago.
+                Al alias <b>pill.ar</b> · subís tu comprobante acá mismo y listo.
+              </span>
+            </span>
+          </span>
+        </button>
+        <button
+          className={`opcion ${pago === 'mp' ? 'border-[#3d8ee7] bg-[#f2f8ff]' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+          onClick={() => setPago('mp')}
+        >
+          <span className="flex items-start gap-3">
+            <Radio activo={pago === 'mp'} />
+            <span>
+              <span className="flex flex-wrap items-center gap-2 text-[15px] font-bold">
+                Mercado Pago de contado — {formatoPeso(t.contado)}
+                <span className="rounded-full bg-[#f2c94c] px-2 py-0.5 text-[11px] font-extrabold text-[#1c2430]">
+                  15% OFF
+                </span>
+              </span>
+              <span className="block text-[13px] text-slate-500">
+                Un pago con dinero en cuenta o tarjeta de débito.
               </span>
             </span>
           </span>
@@ -257,7 +347,7 @@ export default function Checkout({
                 3 cuotas sin interés de {formatoPeso(t.cuota)}
               </span>
               <span className="block text-[13px] text-slate-500">
-                Con tarjeta de crédito, en 3 pagos iguales.
+                Con tarjeta de crédito, en 3 pagos iguales (Mercado Pago).
               </span>
             </span>
           </span>
@@ -300,7 +390,7 @@ export default function Checkout({
         <p className="text-[15px] text-slate-600">
           Tratamiento personalizado: {formatoPeso(payload.li)}
         </p>
-        {pago === 'contado' && (
+        {pago !== 'cuotas' && (
           <p className="mt-1 text-[15px] font-bold text-green-700">
             Descuento pagando de contado (15%): −{formatoPeso(payload.li - payload.tr)}
           </p>
@@ -313,88 +403,122 @@ export default function Checkout({
               : 'Envío a domicilio: elegí tu zona'}
         </p>
         <p className="mt-2 font-serif text-3xl font-bold text-tinta">
-          Total: {formatoPeso(pago === 'contado' ? t.contado : t.cuotas)}
+          Total: {formatoPeso(pago === 'cuotas' ? t.cuotas : t.contado)}
         </p>
         <p className="mt-1.5 text-[13px] text-slate-500">
-          {pago === 'contado'
-            ? 'Transferencia bancaria o dinero en cuenta de Mercado Pago'
-            : `3 cuotas sin interés de ${formatoPeso(t.cuota)} con tarjeta de crédito`}
+          {pago === 'transferencia'
+            ? 'Transferencia bancaria al alias pill.ar'
+            : pago === 'mp'
+              ? 'Un pago con Mercado Pago (dinero en cuenta o débito)'
+              : `3 cuotas sin interés de ${formatoPeso(t.cuota)} con tarjeta de crédito`}
         </p>
       </div>
 
-      {/* Pagar */}
+      {/* Pagar (v2.3): transferencia con alias A LA VISTA + comprobante acá
+          mismo; Mercado Pago con su botón para las otras dos opciones. */}
       <div className="mt-5 space-y-3">
-        <button className="btn-mp disabled:opacity-60" disabled={cargando || !envioElegido || !contactoOk} onClick={pagarConMP}>
-          {cargando ? 'Preparando el pago…' : 'Ir a pagar con Mercado Pago →'}
-        </button>
-        {!envioElegido ? (
-          <p className="text-center text-xs font-medium text-amber-700">Elegí la zona de envío para continuar.</p>
-        ) : !contactoOk ? (
-          <p className="text-center text-xs font-medium text-amber-700">
-            {celularOk ? 'Completá la dirección de envío para continuar.' : 'Completá tu celular para continuar.'}
-          </p>
-        ) : null}
-        {pago === 'contado' && (
-          <button
-            className="block w-full text-center text-[14px] font-semibold text-[#2f6fbd] hover:underline"
-            onClick={() => setVerTransferencia((v) => !v)}
-          >
-            {verTransferencia ? 'Ocultar datos de transferencia' : 'O pagá por transferencia bancaria — ver alias'}
-          </button>
-        )}
-        {pago === 'contado' && verTransferencia && (
-          <div className="space-y-2.5 rounded-xl border border-slate-200 p-4">
-            <p className="text-[14px] text-slate-600">
-              Transferí <b className="text-tinta">{formatoPeso(t.contado)}</b> al alias:
-            </p>
-            <div className="flex items-center justify-between gap-2 rounded-xl bg-[#f1f5fa] p-3">
-              <div>
-                <p className="font-archivo text-lg font-extrabold tracking-tight text-navy">{ALIAS}</p>
-                <p className="text-xs text-slate-500">{TITULAR}</p>
-              </div>
-              <button
-                className="rounded-lg bg-navy px-3 py-2 text-xs font-bold text-white hover:opacity-90"
-                onClick={() => copiar(ALIAS, 'alias')}
-              >
-                {copiado === 'alias' ? '✓ Copiado' : 'Copiar alias'}
-              </button>
-            </div>
-            <div className="flex items-center justify-between gap-2 rounded-xl bg-[#f1f5fa] p-3">
-              <p className="text-lg font-extrabold">{formatoPeso(t.contado)}</p>
-              <button
-                className="rounded-lg bg-navy px-3 py-2 text-xs font-bold text-white hover:opacity-90"
-                onClick={() => copiar(String(t.contado), 'monto')}
-              >
-                {copiado === 'monto' ? '✓ Copiado' : 'Copiar monto'}
-              </button>
-            </div>
-            <p className="text-[13px] leading-relaxed text-slate-500">
-              Cuando transfieras, mandanos el comprobante por WhatsApp y arrancamos con la
-              elaboración.
-            </p>
-            {!celularOk && (
-              <p className="text-[13px] font-medium text-amber-700">
-                💡 Dejanos tu celular en el paso 3, así también te podemos contactar nosotros.
+        {pago === 'transferencia' ? (
+          comprobanteListo ? (
+            <div className="rounded-xl border-2 border-green-300 bg-green-50 p-5 text-center">
+              <p className="text-3xl">✅</p>
+              <p className="mt-1 font-serif text-2xl font-bold text-tinta">¡Recibimos tu comprobante!</p>
+              <p className="mt-2 text-[14px] leading-relaxed text-slate-600">
+                Quedó guardado junto a tu pedido. Lo verificamos y te confirmamos por WhatsApp —
+                ahí mismo arranca la elaboración de tu tratamiento. 💊
               </p>
-            )}
-            {whatsapp && (
-              <a
-                href={`https://wa.me/${whatsapp}?text=${encodeURIComponent('¡Hola! Ya hice la transferencia de mi tratamiento — te mando el comprobante 🏦')}`}
-                className="block w-full rounded-xl bg-[#25D366] py-3 text-center text-[15px] font-bold text-white hover:bg-[#1fb457]"
-                target="_blank"
-                rel="noopener noreferrer"
+              {whatsapp && (
+                <a
+                  href={`https://wa.me/${whatsapp}?text=${encodeURIComponent('¡Hola! Recién subí el comprobante de mi transferencia en el checkout 🏦')}`}
+                  className="mt-3 inline-block text-[14px] font-semibold text-[#2f6fbd] hover:underline"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  📲 Avisarnos por WhatsApp (opcional)
+                </a>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-2.5 rounded-xl border-2 border-[#3d8ee7]/40 bg-white p-4">
+              <p className="text-[14px] text-slate-600">
+                <b className="text-tinta">1.</b> Transferí <b className="text-tinta">{formatoPeso(t.contado)}</b> al alias:
+              </p>
+              <div className="flex items-center justify-between gap-2 rounded-xl bg-[#f1f5fa] p-3">
+                <div>
+                  <p className="font-archivo text-2xl font-extrabold tracking-tight text-navy">{ALIAS}</p>
+                  <p className="text-xs text-slate-500">{TITULAR}</p>
+                </div>
+                <button
+                  className="rounded-lg bg-navy px-3 py-2 text-xs font-bold text-white hover:opacity-90"
+                  onClick={() => copiar(ALIAS, 'alias')}
+                >
+                  {copiado === 'alias' ? '✓ Copiado' : 'Copiar alias'}
+                </button>
+              </div>
+              <div className="flex items-center justify-between gap-2 rounded-xl bg-[#f1f5fa] p-3">
+                <p className="text-lg font-extrabold">{formatoPeso(t.contado)}</p>
+                <button
+                  className="rounded-lg bg-navy px-3 py-2 text-xs font-bold text-white hover:opacity-90"
+                  onClick={() => copiar(String(t.contado), 'monto')}
+                >
+                  {copiado === 'monto' ? '✓ Copiado' : 'Copiar monto'}
+                </button>
+              </div>
+              <p className="pt-1 text-[14px] text-slate-600">
+                <b className="text-tinta">2.</b> Subí tu comprobante (foto o PDF) y listo:
+              </p>
+              <label className={`block cursor-pointer rounded-xl border-2 border-dashed p-4 text-center text-[14px] transition-colors ${archivo ? 'border-green-400 bg-green-50 text-green-800' : 'border-slate-300 text-slate-500 hover:border-[#3d8ee7]'}`}>
+                {archivo ? `📎 ${archivo.name}` : '📎 Tocá acá para elegir el comprobante'}
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,application/pdf"
+                  className="hidden"
+                  onChange={(e) => {
+                    setArchivo(e.target.files?.[0] ?? null);
+                    setErrorComprobante('');
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+              <button
+                className="btn-mp disabled:opacity-60"
+                disabled={!archivo || subiendo || !contactoOk || !envioElegido}
+                onClick={enviarComprobante}
               >
-                📲 Mandar comprobante por WhatsApp
-              </a>
-            )}
-          </div>
+                {subiendo ? 'Enviando…' : '📤 Enviar comprobante y confirmar pedido'}
+              </button>
+              {!envioElegido ? (
+                <p className="text-center text-xs font-medium text-amber-700">Elegí la zona de envío para continuar.</p>
+              ) : !contactoOk ? (
+                <p className="text-center text-xs font-medium text-amber-700">
+                  {celularOk ? 'Completá la dirección de envío (paso 3) para continuar.' : 'Completá tu celular (paso 3) para continuar.'}
+                </p>
+              ) : !archivo ? (
+                <p className="text-center text-xs text-slate-400">¿Todavía no transferiste? Copiá el alias y hacelo desde tu banco o billetera.</p>
+              ) : null}
+              {errorComprobante && <p className="text-center text-sm font-medium text-red-600">{errorComprobante}</p>}
+            </div>
+          )
+        ) : (
+          <>
+            <button className="btn-mp disabled:opacity-60" disabled={cargando || !envioElegido || !contactoOk} onClick={pagarConMP}>
+              {cargando ? 'Preparando el pago…' : 'Ir a pagar con Mercado Pago →'}
+            </button>
+            {!envioElegido ? (
+              <p className="text-center text-xs font-medium text-amber-700">Elegí la zona de envío para continuar.</p>
+            ) : !contactoOk ? (
+              <p className="text-center text-xs font-medium text-amber-700">
+                {celularOk ? 'Completá la dirección de envío para continuar.' : 'Completá tu celular para continuar.'}
+              </p>
+            ) : null}
+            {error && <p className="text-center text-sm font-medium text-red-600">{error}</p>}
+          </>
         )}
-        {error && <p className="text-center text-sm font-medium text-red-600">{error}</p>}
       </div>
 
       <p className="mt-5 text-center text-[12px] leading-relaxed text-slate-400">
-        Pago procesado por Mercado Pago. Al pagar aceptás los Términos y Condiciones y la Política
-        de Privacidad de PILL.AR.
+        {pago === 'transferencia'
+          ? 'Verificamos cada transferencia antes de confirmar el pedido. Al pagar aceptás los Términos y Condiciones y la Política de Privacidad de PILL.AR.'
+          : 'Pago procesado por Mercado Pago. Al pagar aceptás los Términos y Condiciones y la Política de Privacidad de PILL.AR.'}
       </p>
     </div>
   );

@@ -37,5 +37,12 @@ export default async function CotizacionCorta({ params }: { params: { id: string
     );
   }
 
-  return <Checkout payload={datos} fuente={{ c: params.id, t: params.t }} whatsapp={whatsappNumero()} />;
+  return (
+    <Checkout
+      payload={datos}
+      fuente={{ c: params.id, t: params.t }}
+      whatsapp={whatsappNumero()}
+      comprobanteRecibido={datos.comprobanteRecibido === true}
+    />
+  );
 }
