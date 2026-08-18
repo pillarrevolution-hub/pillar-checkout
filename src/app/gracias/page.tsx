@@ -30,7 +30,7 @@ export default async function Gracias({
   return (
     <div className="tarjeta text-center">
       <p className="mb-2 text-4xl">{pendiente ? '⏳' : '🎉'}</p>
-      <h1 className="font-serif text-3xl font-bold text-tinta">
+      <h1 className="font-sans text-3xl font-bold text-tinta">
         {pendiente ? 'Pago en proceso' : '¡Pago recibido!'}
       </h1>
       <p className="mt-2 text-sm text-slate-600">

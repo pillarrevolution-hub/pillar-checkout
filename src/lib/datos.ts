@@ -8,7 +8,9 @@ export type DatosCheckout = PayloadCheckout & { pagada?: boolean; comprobanteRec
 
 export async function obtenerDatos(id: string | number, t: string): Promise<DatosCheckout | null> {
   const base = (process.env.MALVINAS_URL ?? '').replace(/\/$/, '');
-  if (!base || !/^\d+$/.test(String(id)) || !/^[0-9a-f]{32}$/.test(t)) return null;
+  // Firma corta de 12 hex (v2.3.1, "el link sigue largo") o la vieja de 32
+  // — Malvinas valida las dos, los links ya mandados siguen andando.
+  if (!base || !/^\d+$/.test(String(id)) || !/^([0-9a-f]{12}|[0-9a-f]{32})$/.test(t)) return null;
   try {
     const res = await fetch(`${base}/api/cotizaciones/${id}/checkout-data?t=${t}`, {
       cache: 'no-store',

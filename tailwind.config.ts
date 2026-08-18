@@ -13,9 +13,12 @@ const config: Config = {
         tinta: '#16232f', // texto principal
       },
       fontFamily: {
-        sans: ['var(--font-inter)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        archivo: ['var(--font-archivo)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        serif: ['Georgia', 'Cambria', '"Times New Roman"', 'serif'],
+        // v2.3.1 (Tomi: "la letra linda y redondeada que usaba el CEO"):
+        // sim.pill.ar usa la fuente del SISTEMA (-apple-system → SF Pro en
+        // iPhone/Mac, Roboto en Android, Segoe en Windows) — mismo stack acá,
+        // y se terminó la Times de los títulos (el viejo font-serif).
+        sans: ['-apple-system', 'system-ui', '"Segoe UI"', 'Roboto', '"Helvetica Neue"', 'Arial', 'sans-serif'],
+        archivo: ['var(--font-archivo)', '-apple-system', 'system-ui', 'sans-serif'],
       },
     },
   },

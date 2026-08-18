@@ -13,7 +13,7 @@ export default async function CotizacionCorta({ params }: { params: { id: string
     return (
       <div className="tarjeta text-center">
         <p className="mb-2 text-4xl">🔒</p>
-        <h1 className="font-serif text-3xl font-bold text-tinta">Este link no es válido</h1>
+        <h1 className="font-sans text-3xl font-bold text-tinta">Este link no es válido</h1>
         <p className="mt-2 text-sm text-slate-600">
           El link está incompleto o vencido. Pedinos uno nuevo por WhatsApp y te lo mandamos al
           toque.
@@ -26,7 +26,7 @@ export default async function CotizacionCorta({ params }: { params: { id: string
     return (
       <div className="tarjeta text-center">
         <p className="mb-2 text-4xl">✅</p>
-        <h1 className="font-serif text-3xl font-bold text-tinta">
+        <h1 className="font-sans text-3xl font-bold text-tinta">
           ¡Este pedido ya está pago{datos.n ? `, ${datos.n}` : ''}!
         </h1>
         <p className="mt-2 text-sm text-slate-600">

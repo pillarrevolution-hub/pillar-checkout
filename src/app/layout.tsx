@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
-import { Archivo, Inter } from 'next/font/google';
+import { Archivo } from 'next/font/google';
 import './globals.css';
 
+// Archivo queda SOLO para el wordmark PILL.AR; todo el resto usa la fuente
+// del sistema (mismo stack que sim.pill.ar — "la letra linda y redondeada").
 const archivo = Archivo({ subsets: ['latin'], weight: ['600', '700', '800'], variable: '--font-archivo' });
-const inter = Inter({ subsets: ['latin'], weight: ['400', '500', '600', '700'], variable: '--font-inter' });
 
 export const metadata: Metadata = {
   title: 'Tu tratamiento · PILL.AR',
@@ -16,7 +17,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es">
-      <body className={`${inter.variable} ${archivo.variable} bg-fondo font-sans text-tinta antialiased`}>
+      <body className={`${archivo.variable} bg-fondo font-sans text-tinta antialiased`}>
         <header className="bg-gradient-to-b from-[#0a1626] to-[#10233c] py-4">
           <p className="text-center font-archivo text-xl font-extrabold tracking-wide text-white">
             PILL<span className="text-celeste">.</span>AR

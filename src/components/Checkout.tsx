@@ -11,8 +11,9 @@ import {
 // ---------------------------------------------------------------
 // Checkout PILL.AR — estética alineada a la web de referencia del equipo
 // (sim.pill.ar, "a todos les gustó más esa"): tarjeta única, "Hola,
-// Nombre." en serif, precio en tarjeta navy con badge amarillo de
-// descuento, pasos con círculo celeste, opciones con radio, resumen y
+// Nombre." con la FUENTE DEL SISTEMA (v2.3.1 — mismo stack que el CEO,
+// chau Times), precio en tarjeta navy con badge amarillo de descuento,
+// pasos con círculo celeste, opciones con radio, resumen y
 // botón azul a Mercado Pago. Diferencias de fondo que se conservan:
 // transferencia al alias con botones de copiar, dos zonas de envío con
 // precio al instante, y datos siempre vigentes desde Malvinas.
@@ -72,8 +73,29 @@ export default function Checkout({
   // completa (al salir del campo) — si paga por transferencia no hay
   // ningún aviso posterior, así que no se puede esperar al pago.
   const [celular, setCelular] = useState('');
-  const [direccion, setDireccion] = useState('');
+  // Dirección DESGLOSADA (v2.3.1, campos de la web del CEO — Tomi: "ya veo
+  // la gente poniendo la calle y no el número"): localidad, calle y número
+  // y CP obligatorios; piso, barrio y referencias opcionales. A Malvinas
+  // viaja TODO concatenado en un solo campo (así se ve en 📒 Seguimiento).
+  const [localidad, setLocalidad] = useState('');
+  const [calle, setCalle] = useState('');
+  const [piso, setPiso] = useState('');
+  const [cp, setCp] = useState('');
+  const [barrio, setBarrio] = useState('');
+  const [referencias, setReferencias] = useState('');
   const ultimoContacto = useRef('');
+
+  const direccionCompleta = [
+    calle.trim(),
+    piso.trim(),
+    barrio.trim(),
+    localidad.trim() && cp.trim()
+      ? `${localidad.trim()} (CP ${cp.trim()})`
+      : localidad.trim() || (cp.trim() ? `CP ${cp.trim()}` : ''),
+  ]
+    .filter(Boolean)
+    .join(', ')
+    .concat(referencias.trim() ? ` — ${referencias.trim()}` : '');
 
   const envio: OpcionEnvio = recibe === 'retiro' ? 'colegio' : zona ?? 'cordoba';
   const envioElegido = recibe === 'retiro' || zona != null;
@@ -103,7 +125,7 @@ export default function Checkout({
   // Silencioso: nunca frena el pago por esto.
   async function guardarContacto() {
     const cel = celular.trim();
-    const dir = direccion.trim();
+    const dir = recibe === 'envio' ? direccionCompleta : '';
     if (!cel && !dir) return;
     const clave = `${cel}|${dir}`;
     if (clave === ultimoContacto.current) return;
@@ -116,7 +138,22 @@ export default function Checkout({
   }
 
   const celularOk = celular.replace(/\D/g, '').length >= 6;
-  const contactoOk = celularOk && (recibe === 'retiro' || direccion.trim().length >= 5);
+  const direccionOk = localidad.trim().length >= 2 && calle.trim().length >= 4 && cp.trim().length >= 3;
+  const contactoOk = celularOk && (recibe === 'retiro' || direccionOk);
+
+  // Cruce zona ↔ localidad (Tomi: "poniendo una dirección que coincide con
+  // la de Córdoba capital y en realidad es de un pueblo del interior").
+  // Aviso suave, no bloquea.
+  const normLoc = localidad.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const pareceCapital = normLoc === 'cordoba' || normLoc === 'cordoba capital' || normLoc === 'cba';
+  const avisoZona =
+    recibe === 'envio' && localidad.trim() && zona != null
+      ? zona === 'cordoba' && !normLoc.includes('cordoba') && normLoc !== 'cba'
+        ? `⚠ Elegiste envío en Córdoba capital pero la localidad es "${localidad.trim()}" — si es del interior, marcá "Resto de la provincia".`
+        : zona === 'fuera' && pareceCapital
+          ? '💡 Si tu dirección es de Córdoba capital, elegí esa opción de envío (cuesta menos).'
+          : ''
+      : '';
 
   async function pagarConMP() {
     setCargando(true);
@@ -190,7 +227,7 @@ export default function Checkout({
     <div className="tarjeta">
       {/* Encabezado */}
       <span className="chip">Cotización personalizada</span>
-      <h1 className="mt-3 font-serif text-4xl font-bold text-tinta">Hola, {payload.n}.</h1>
+      <h1 className="mt-3 font-sans text-4xl font-bold text-tinta">Hola, {payload.n}.</h1>
       <p className="mt-2 text-[15px] text-slate-500">
         Preparada por el equipo de PILL.AR. Elegí cómo recibirlo y cómo pagarlo.
       </p>
@@ -211,7 +248,7 @@ export default function Checkout({
           Valor de tu tratamiento: <s className="text-slate-400">{formatoPeso(payload.li)}</s>
         </p>
         <p className="mt-1">
-          <span className="font-serif text-4xl font-bold">{formatoPeso(payload.tr)}</span>
+          <span className="font-sans text-4xl font-bold">{formatoPeso(payload.tr)}</span>
           <span className="ml-2 text-sm text-slate-300">pagando de contado</span>
         </p>
         <span className="mt-3 inline-block rounded-full bg-[#f2c94c] px-3.5 py-1.5 text-xs font-extrabold uppercase tracking-wide text-[#1c2430]">
@@ -269,7 +306,7 @@ export default function Checkout({
             {(
               [
                 ['cordoba', 'Córdoba capital', payload.ec],
-                ['fuera', 'Resto del país', payload.el],
+                ['fuera', 'Resto de la provincia', payload.el],
               ] as const
             ).map(([id, titulo, precio]) => (
               <button
@@ -286,6 +323,53 @@ export default function Checkout({
                 </span>
               </button>
             ))}
+
+            {/* Dirección desglosada (v2.3.1, mismos campos que la web del
+                CEO): así nadie manda la calle sin el número ni se olvida
+                el depto. Guarda en Malvinas al salir de cada campo. */}
+            <div className="space-y-2.5 pt-2">
+              <div>
+                <label className="mb-1 block text-[13px] font-bold text-tinta">Localidad</label>
+                <input className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-[15px] focus:border-[#3d8ee7] focus:outline-none"
+                  placeholder="Ej: Alta Gracia" value={localidad}
+                  onChange={(e) => setLocalidad(e.target.value)} onBlur={guardarContacto} />
+              </div>
+              <div>
+                <label className="mb-1 block text-[13px] font-bold text-tinta">Calle y número</label>
+                <input className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-[15px] focus:border-[#3d8ee7] focus:outline-none"
+                  placeholder="Ej: Av. Colón 1234" value={calle}
+                  onChange={(e) => setCalle(e.target.value)} onBlur={guardarContacto} />
+              </div>
+              <div className="flex gap-2.5">
+                <div className="flex-1">
+                  <label className="mb-1 block text-[13px] font-bold text-tinta">Piso / depto <span className="font-normal text-slate-400">(opcional)</span></label>
+                  <input className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-[15px] focus:border-[#3d8ee7] focus:outline-none"
+                    placeholder="Ej: 3° B" value={piso}
+                    onChange={(e) => setPiso(e.target.value)} onBlur={guardarContacto} />
+                </div>
+                <div className="flex-1">
+                  <label className="mb-1 block text-[13px] font-bold text-tinta">Código postal</label>
+                  <input className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-[15px] focus:border-[#3d8ee7] focus:outline-none"
+                    inputMode="numeric" placeholder="Ej: 5000" value={cp}
+                    onChange={(e) => setCp(e.target.value)} onBlur={guardarContacto} />
+                </div>
+              </div>
+              <div>
+                <label className="mb-1 block text-[13px] font-bold text-tinta">Barrio <span className="font-normal text-slate-400">(opcional)</span></label>
+                <input className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-[15px] focus:border-[#3d8ee7] focus:outline-none"
+                  placeholder="Ej: Nueva Córdoba" value={barrio}
+                  onChange={(e) => setBarrio(e.target.value)} onBlur={guardarContacto} />
+              </div>
+              <div>
+                <label className="mb-1 block text-[13px] font-bold text-tinta">Referencias para la entrega <span className="font-normal text-slate-400">(opcional)</span></label>
+                <input className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-[15px] focus:border-[#3d8ee7] focus:outline-none"
+                  placeholder="Ej: portón negro, tocar timbre depto B" value={referencias}
+                  onChange={(e) => setReferencias(e.target.value)} onBlur={guardarContacto} />
+              </div>
+              {avisoZona && (
+                <p className="rounded-xl bg-amber-50 px-3 py-2 text-[13px] font-medium text-amber-800">{avisoZona}</p>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -369,19 +453,10 @@ export default function Checkout({
           onChange={(e) => setCelular(e.target.value)}
           onBlur={guardarContacto}
         />
-        {recibe === 'envio' && (
-          <input
-            className="w-full rounded-xl border border-slate-200 px-4 py-3 text-[15px] focus:border-[#3d8ee7] focus:outline-none"
-            placeholder="📦 Dirección de envío (calle, número, piso, localidad)"
-            value={direccion}
-            onChange={(e) => setDireccion(e.target.value)}
-            onBlur={guardarContacto}
-          />
-        )}
         <p className="text-[12px] text-slate-400">
           {recibe === 'retiro'
             ? 'Usamos tu celular para avisarte en qué farmacia retirás tu pedido.'
-            : 'Usamos tu celular para coordinar la entrega en esa dirección.'}
+            : 'Usamos tu celular para coordinar la entrega en la dirección que pusiste arriba.'}
         </p>
       </div>
 
@@ -399,10 +474,10 @@ export default function Checkout({
           {recibe === 'retiro'
             ? 'Retiro en farmacia: sin cargo'
             : envioElegido
-              ? `Envío a domicilio (${zona === 'fuera' ? 'resto del país' : 'Córdoba capital'}): ${formatoPeso(t.envio)}`
+              ? `Envío a domicilio (${zona === 'fuera' ? 'resto de la provincia' : 'Córdoba capital'}): ${formatoPeso(t.envio)}`
               : 'Envío a domicilio: elegí tu zona'}
         </p>
-        <p className="mt-2 font-serif text-3xl font-bold text-tinta">
+        <p className="mt-2 font-sans text-3xl font-bold text-tinta">
           Total: {formatoPeso(pago === 'cuotas' ? t.cuotas : t.contado)}
         </p>
         <p className="mt-1.5 text-[13px] text-slate-500">
@@ -421,7 +496,7 @@ export default function Checkout({
           comprobanteListo ? (
             <div className="rounded-xl border-2 border-green-300 bg-green-50 p-5 text-center">
               <p className="text-3xl">✅</p>
-              <p className="mt-1 font-serif text-2xl font-bold text-tinta">¡Recibimos tu comprobante!</p>
+              <p className="mt-1 font-sans text-2xl font-bold text-tinta">¡Recibimos tu comprobante!</p>
               <p className="mt-2 text-[14px] leading-relaxed text-slate-600">
                 Quedó guardado junto a tu pedido. Lo verificamos y te confirmamos por WhatsApp —
                 ahí mismo arranca la elaboración de tu tratamiento. 💊
@@ -490,7 +565,7 @@ export default function Checkout({
                 <p className="text-center text-xs font-medium text-amber-700">Elegí la zona de envío para continuar.</p>
               ) : !contactoOk ? (
                 <p className="text-center text-xs font-medium text-amber-700">
-                  {celularOk ? 'Completá la dirección de envío (paso 3) para continuar.' : 'Completá tu celular (paso 3) para continuar.'}
+                  {celularOk ? 'Completá localidad, calle y código postal del envío para continuar.' : 'Completá tu celular (paso 3) para continuar.'}
                 </p>
               ) : !archivo ? (
                 <p className="text-center text-xs text-slate-400">¿Todavía no transferiste? Copiá el alias y hacelo desde tu banco o billetera.</p>
@@ -507,7 +582,7 @@ export default function Checkout({
               <p className="text-center text-xs font-medium text-amber-700">Elegí la zona de envío para continuar.</p>
             ) : !contactoOk ? (
               <p className="text-center text-xs font-medium text-amber-700">
-                {celularOk ? 'Completá la dirección de envío para continuar.' : 'Completá tu celular para continuar.'}
+                {celularOk ? 'Completá localidad, calle y código postal del envío para continuar.' : 'Completá tu celular para continuar.'}
               </p>
             ) : null}
             {error && <p className="text-center text-sm font-medium text-red-600">{error}</p>}
@@ -517,8 +592,18 @@ export default function Checkout({
 
       <p className="mt-5 text-center text-[12px] leading-relaxed text-slate-400">
         {pago === 'transferencia'
-          ? 'Verificamos cada transferencia antes de confirmar el pedido. Al pagar aceptás los Términos y Condiciones y la Política de Privacidad de PILL.AR.'
-          : 'Pago procesado por Mercado Pago. Al pagar aceptás los Términos y Condiciones y la Política de Privacidad de PILL.AR.'}
+          ? 'Verificamos cada transferencia antes de confirmar el pedido. '
+          : 'Pago procesado por Mercado Pago. '}
+        Al pagar aceptás los{' '}
+        <a
+          href="https://pill.ar/es/terminos-y-condiciones"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline hover:text-slate-600"
+        >
+          Términos y Condiciones y la Política de Privacidad
+        </a>{' '}
+        de PILL.AR.
       </p>
     </div>
   );
