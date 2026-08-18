@@ -1,5 +1,5 @@
 'use client';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   formatoPeso,
   montoEnvio,
@@ -56,6 +56,13 @@ export default function Checkout({
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
   const [copiado, setCopiado] = useState<'alias' | 'monto' | null>(null);
+  // Datos de contacto (v2.2, pedido de Tomi): celular siempre; dirección
+  // solo si eligió envío a domicilio. Se guardan en Malvinas apenas los
+  // completa (al salir del campo) — si paga por transferencia no hay
+  // ningún aviso posterior, así que no se puede esperar al pago.
+  const [celular, setCelular] = useState('');
+  const [direccion, setDireccion] = useState('');
+  const ultimoContacto = useRef('');
 
   const envio: OpcionEnvio = recibe === 'retiro' ? 'colegio' : zona ?? 'cordoba';
   const envioElegido = recibe === 'retiro' || zona != null;
@@ -81,10 +88,30 @@ export default function Checkout({
     }
   }
 
+  // Manda celular/dirección al server (y de ahí a Malvinas) si cambiaron.
+  // Silencioso: nunca frena el pago por esto.
+  async function guardarContacto() {
+    const cel = celular.trim();
+    const dir = direccion.trim();
+    if (!cel && !dir) return;
+    const clave = `${cel}|${dir}`;
+    if (clave === ultimoContacto.current) return;
+    ultimoContacto.current = clave;
+    await fetch('/api/contacto', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...fuente, celular: cel, direccion: dir }),
+    }).catch(() => {});
+  }
+
+  const celularOk = celular.replace(/\D/g, '').length >= 6;
+  const contactoOk = celularOk && (recibe === 'retiro' || direccion.trim().length >= 5);
+
   async function pagarConMP() {
     setCargando(true);
     setError('');
     try {
+      await guardarContacto();
       const res = await fetch('/api/preferencia', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -237,6 +264,37 @@ export default function Checkout({
         </button>
       </div>
 
+      {/* Paso 3 · Datos de contacto (v2.2): celular siempre; dirección solo
+          con envío a domicilio. Van a Malvinas al salir del campo. */}
+      <div className="mt-7 flex items-center gap-2.5">
+        <span className="paso">3</span>
+        <h2 className="text-lg font-bold">Tus datos para coordinar</h2>
+      </div>
+      <div className="mt-3 space-y-2.5">
+        <input
+          className="w-full rounded-xl border border-slate-200 px-4 py-3 text-[15px] focus:border-[#3d8ee7] focus:outline-none"
+          inputMode="tel"
+          placeholder="📱 Tu celular (con código de área, ej. 351 555 0000)"
+          value={celular}
+          onChange={(e) => setCelular(e.target.value)}
+          onBlur={guardarContacto}
+        />
+        {recibe === 'envio' && (
+          <input
+            className="w-full rounded-xl border border-slate-200 px-4 py-3 text-[15px] focus:border-[#3d8ee7] focus:outline-none"
+            placeholder="📦 Dirección de envío (calle, número, piso, localidad)"
+            value={direccion}
+            onChange={(e) => setDireccion(e.target.value)}
+            onBlur={guardarContacto}
+          />
+        )}
+        <p className="text-[12px] text-slate-400">
+          {recibe === 'retiro'
+            ? 'Usamos tu celular para avisarte en qué farmacia retirás tu pedido.'
+            : 'Usamos tu celular para coordinar la entrega en esa dirección.'}
+        </p>
+      </div>
+
       {/* Resumen */}
       <div className="mt-6 rounded-xl bg-[#f1f5fa] p-5">
         <p className="text-[15px] text-slate-600">
@@ -266,12 +324,16 @@ export default function Checkout({
 
       {/* Pagar */}
       <div className="mt-5 space-y-3">
-        <button className="btn-mp disabled:opacity-60" disabled={cargando || !envioElegido} onClick={pagarConMP}>
+        <button className="btn-mp disabled:opacity-60" disabled={cargando || !envioElegido || !contactoOk} onClick={pagarConMP}>
           {cargando ? 'Preparando el pago…' : 'Ir a pagar con Mercado Pago →'}
         </button>
-        {!envioElegido && (
+        {!envioElegido ? (
           <p className="text-center text-xs font-medium text-amber-700">Elegí la zona de envío para continuar.</p>
-        )}
+        ) : !contactoOk ? (
+          <p className="text-center text-xs font-medium text-amber-700">
+            {celularOk ? 'Completá la dirección de envío para continuar.' : 'Completá tu celular para continuar.'}
+          </p>
+        ) : null}
         {pago === 'contado' && (
           <button
             className="block w-full text-center text-[14px] font-semibold text-[#2f6fbd] hover:underline"
@@ -310,6 +372,11 @@ export default function Checkout({
               Cuando transfieras, mandanos el comprobante por WhatsApp y arrancamos con la
               elaboración.
             </p>
+            {!celularOk && (
+              <p className="text-[13px] font-medium text-amber-700">
+                💡 Dejanos tu celular en el paso 3, así también te podemos contactar nosotros.
+              </p>
+            )}
             {whatsapp && (
               <a
                 href={`https://wa.me/${whatsapp}?text=${encodeURIComponent('¡Hola! Ya hice la transferencia de mi tratamiento — te mando el comprobante 🏦')}`}
