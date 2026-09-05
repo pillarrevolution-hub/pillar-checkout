@@ -1,20 +1,26 @@
 import { confirmarPagoDeRetorno } from '@/lib/aviso';
 import { linkWhatsApp, whatsappNumero } from '@/lib/datos';
+import { formatoPeso } from '@/lib/firma';
+import { mensajeConfirmacion } from '@/lib/mensajes';
+import { IconCheck } from '@/components/icons';
 
 export const dynamic = 'force-dynamic';
 
 // Vuelta del pago de Mercado Pago. Acá mismo se CONFIRMA el pago contra
 // la API de MP y se avisa a Malvinas (la cotización queda PAGADA sin
-// depender del webhook, que puede demorar). El botón de WhatsApp avisa a
-// la farmacia — pedido de Tomi: sin promesas de "cada etapa" y con un
-// mensaje listo para mandar.
+// depender del webhook, que puede demorar). Misma estética de
+// confirmación que el paso 5 del checkout, y el mismo botón de WhatsApp
+// con el mensaje YA ARMADO (pedido de Tomi: poder corroborar el pago) —
+// los datos del pedido salen de la metadata que /api/preferencia mandó a
+// Mercado Pago al crear la preferencia, sin volver a pedirle nada a
+// Malvinas.
 export default async function Gracias({
   searchParams,
 }: {
   searchParams: { pendiente?: string; status?: string; payment_id?: string; collection_id?: string };
 }) {
   const paymentId = searchParams.payment_id ?? searchParams.collection_id;
-  const { aprobado } = await confirmarPagoDeRetorno(paymentId);
+  const { aprobado, resumen } = await confirmarPagoDeRetorno(paymentId);
 
   const pendiente =
     !aprobado &&
@@ -23,31 +29,67 @@ export default async function Gracias({
       searchParams.status === 'in_process');
 
   const numero = whatsappNumero();
-  const wsp = numero
-    ? linkWhatsApp(numero, '¡Hola! Ya hice el pago de mi tratamiento por Mercado Pago ✅')
-    : null;
+  const mensaje =
+    resumen && numero
+      ? mensajeConfirmacion({
+          nombre: resumen.nombre || 'paciente',
+          o: resumen.o,
+          accion: `pagar ${formatoPeso(resumen.monto)} por Mercado Pago${resumen.tipo === 'cuotas' ? ' (3 cuotas)' : ''}`,
+          recibo: resumen.recibo,
+          celular: resumen.celular || 's/d',
+        })
+      : null;
+  const wsp = numero ? linkWhatsApp(numero, mensaje ?? '¡Hola! Ya hice el pago de mi tratamiento por Mercado Pago ✅') : null;
+
+  if (pendiente) {
+    return (
+      <div className="tarjeta text-center">
+        <p className="mb-2 text-4xl">⏳</p>
+        <h1 className="font-sans text-3xl font-bold text-tinta">Pago en proceso</h1>
+        <p className="mt-2 text-sm text-slate-600">
+          Tu pago está siendo procesado por Mercado Pago. En cuanto se acredite arrancamos con la
+          elaboración de tu tratamiento.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="tarjeta text-center">
-      <p className="mb-2 text-4xl">{pendiente ? '⏳' : '🎉'}</p>
+      <div className="mb-3 flex justify-center">
+        <IconCheck className="h-12 w-12" />
+      </div>
       <h1 className="font-sans text-3xl font-bold text-tinta">
-        {pendiente ? 'Pago en proceso' : '¡Pago recibido!'}
+        {aprobado ? `¡Listo${resumen?.nombre ? `, ${resumen.nombre}` : ''}!` : '¡Pago recibido!'}
       </h1>
-      <p className="mt-2 text-sm text-slate-600">
-        {pendiente
-          ? 'Tu pago está siendo procesado por Mercado Pago. En cuanto se acredite arrancamos con la elaboración de tu tratamiento.'
-          : 'Ya registramos tu pago y tu pedido entra en elaboración. ¡Gracias por confiar en PILL.AR! 💙'}
+      <p className="mt-2 text-[15px] leading-relaxed text-slate-600">
+        Ya registramos tu pago y tu pedido entra en elaboración. ¡Gracias por confiar en PILL.AR!
       </p>
-      {wsp && !pendiente && (
+
+      {resumen && (
+        <div className="mt-5 rounded-xl bg-[#f1f5fa] p-4 text-left text-[14px] leading-relaxed text-[#475569]">
+          <p>Recibís: {resumen.recibo}</p>
+          <p>
+            Pagaste: {formatoPeso(resumen.monto)} por Mercado Pago
+            {resumen.tipo === 'cuotas' ? ' (3 cuotas)' : ''}
+          </p>
+          {resumen.celular && <p>Te avisamos al: {resumen.celular}</p>}
+        </div>
+      )}
+
+      {wsp && (
         <a
           href={wsp}
-          className="mx-auto mt-5 block w-full max-w-sm rounded-xl bg-[#25D366] py-3 text-center text-[15px] font-bold text-white hover:bg-[#1fb457]"
+          className="mt-5 block w-full rounded-[14px] bg-[#f2c94c] px-5 py-4 text-center text-[18px] font-extrabold text-[#1c2430] hover:opacity-95"
           target="_blank"
           rel="noopener noreferrer"
         >
-          📲 Avisanos por WhatsApp
+          Avisarnos por WhatsApp
         </a>
       )}
+      <p className="mt-4 text-[13px] text-slate-400">
+        Podés cerrar esta página. Guardá el link por si querés volver a verla.
+      </p>
     </div>
   );
 }

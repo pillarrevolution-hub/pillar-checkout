@@ -12,11 +12,40 @@
   @apply flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#bfdcff] text-sm font-extrabold text-[#123d6b];
 }
 .opcion {
-  @apply w-full rounded-xl border-2 p-3.5 text-left transition-colors;
+  @apply flex min-h-[72px] w-full items-center rounded-xl border-2 p-3.5 text-left transition-colors;
+}
+.opcion-chica {
+  @apply flex min-h-[56px] w-full items-center rounded-xl border-2 p-3 text-left transition-colors;
 }
 .radio {
   @apply mt-0.5 h-[18px] w-[18px] shrink-0 rounded-full border-2;
 }
+.radio-chico {
+  @apply h-4 w-4 shrink-0 rounded-full border-2;
+}
 .btn-mp {
   @apply block w-full rounded-xl bg-gradient-to-b from-[#5aa9f7] to-[#3d8ee7] py-3.5 text-center text-base font-extrabold text-[#0c2038] transition-opacity hover:opacity-95;
+}
+.input-paso {
+  @apply w-full rounded-[14px] border-2 border-slate-200 px-4 py-3 text-[20px] focus:border-[#3d8ee7] focus:outline-none;
+}
+.btn-siguiente {
+  @apply block w-full rounded-[14px] bg-[#f2c94c] px-[18px] py-[18px] text-center text-[20px] font-extrabold text-[#1c2430] transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50;
+}
+.btn-volver {
+  @apply block w-full rounded-[14px] border border-slate-300 bg-white px-[18px] py-[18px] text-center text-[17px] font-bold text-tinta transition-colors hover:bg-slate-50;
+}
+.wa-ayuda {
+  @apply block text-center text-[15px] font-medium text-[#2f6fbd] hover:underline;
+}
+.fade-paso {
+  animation: fadePaso 150ms ease;
+}
+@keyframes fadePaso {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }

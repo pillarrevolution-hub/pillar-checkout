@@ -1,4 +1,5 @@
 import { obtenerPago, type PagoMP } from './mp';
+import { descripcionRecibo } from './mensajes';
 
 // Aviso del pago aprobado a Malvinas (pagada-externa): lo usan el webhook
 // de MP y TAMBIÉN la página /gracias al volver del pago — así la
@@ -16,6 +17,12 @@ export async function avisarPagoAMalvinas(
   const secreto = process.env.CHECKOUT_SECRET ?? '';
   if (!malvinas || !secreto) return 'error';
 
+  // v3: envioLocalidad/retiroModo/retiroLugar/envioMonto salen de la
+  // metadata de la preferencia (MP la devuelve tal cual en el pago) —
+  // `envio` se mantiene además como nombre corto, por compatibilidad con
+  // el fallback de precios fijos que todavía entiende pagada-externa.
+  const m = (pago.metadata ?? {}) as Record<string, unknown>;
+
   const res = await fetch(`${malvinas}/api/cotizaciones/${cotizacionId}/pagada-externa`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-checkout-secret': secreto },
@@ -26,6 +33,10 @@ export async function avisarPagoAMalvinas(
       cuotas: pago.installments ?? 1,
       envio: envio ?? '',
       tipo: tipo ?? '',
+      retiroModo: typeof m.retiro_modo === 'string' ? m.retiro_modo : '',
+      retiroLugar: typeof m.retiro_lugar === 'string' ? m.retiro_lugar : '',
+      envioLocalidad: typeof m.envio_localidad === 'string' ? m.envio_localidad : '',
+      envioMonto: Number.isFinite(Number(m.envio_monto)) ? Number(m.envio_monto) : null,
     }),
   }).catch(() => null);
 
@@ -35,18 +46,60 @@ export async function avisarPagoAMalvinas(
   return 'error';
 }
 
+// Resumen del pago para armar el mensaje de WhatsApp de /gracias (mismo
+// formato que la confirmación en el checkout): sale de la metadata que
+// mandó /api/preferencia al crear la preferencia, sin volver a pedirle
+// nada a Malvinas. Si un pago viejo no tiene metadata, se degrada
+// amablemente (nombre y recibo genéricos).
+export type ResumenPago = {
+  nombre: string;
+  o: number;
+  monto: number;
+  tipo: 'contado' | 'cuotas' | '';
+  celular: string;
+  recibo: string;
+};
+
+function resumenDesdePago(pago: PagoMP, cotizacionId: string): ResumenPago {
+  const m = (pago.metadata ?? {}) as Record<string, unknown>;
+  const retiroModo = typeof m.retiro_modo === 'string' ? m.retiro_modo : '';
+  const retiroLugar = typeof m.retiro_lugar === 'string' ? m.retiro_lugar : '';
+  const envioLocalidad = typeof m.envio_localidad === 'string' ? m.envio_localidad : '';
+  const direccionTexto = typeof m.direccion_texto === 'string' ? m.direccion_texto : '';
+
+  const recibo =
+    retiroModo === 'red'
+      ? descripcionRecibo({ modo: 'red', sucursal: retiroLugar })
+      : retiroModo === 'colegio'
+        ? descripcionRecibo({ modo: 'colegio', localidad: retiroLugar })
+        : envioLocalidad
+          ? descripcionRecibo({ modo: 'envio', direccion: direccionTexto || envioLocalidad })
+          : 'retiro en farmacia';
+
+  return {
+    nombre: typeof m.nombre === 'string' ? m.nombre : '',
+    o: Number(cotizacionId),
+    monto: pago.transaction_amount,
+    tipo: m.tipo === 'cuotas' ? 'cuotas' : m.tipo === 'contado' ? 'contado' : '',
+    celular: typeof m.celular === 'string' ? m.celular : '',
+    recibo,
+  };
+}
+
 // Confirmación al volver del pago (/gracias?payment_id=…): consulta el
 // pago real en MP y avisa a Malvinas. Nunca confía en los query params
 // para el estado — el estado sale de la API de MP.
 export async function confirmarPagoDeRetorno(paymentId: string | undefined): Promise<{
   aprobado: boolean;
   cotizacionId: string | null;
+  resumen: ResumenPago | null;
 }> {
-  if (!paymentId || !/^\d+$/.test(paymentId)) return { aprobado: false, cotizacionId: null };
+  if (!paymentId || !/^\d+$/.test(paymentId)) return { aprobado: false, cotizacionId: null, resumen: null };
   const pago = await obtenerPago(paymentId).catch(() => null);
-  if (!pago) return { aprobado: false, cotizacionId: null };
+  if (!pago) return { aprobado: false, cotizacionId: null, resumen: null };
   const resultado = await avisarPagoAMalvinas(pago);
   console.log(`gracias: pago ${paymentId} status=${pago.status} aviso=${resultado}`);
   const cotizacionId = String(pago.external_reference ?? '').split('|')[0] || null;
-  return { aprobado: pago.status === 'approved', cotizacionId };
+  const resumen = cotizacionId && pago.metadata?.nombre ? resumenDesdePago(pago, cotizacionId) : null;
+  return { aprobado: pago.status === 'approved', cotizacionId, resumen };
 }
