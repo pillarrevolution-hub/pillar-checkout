@@ -37,7 +37,7 @@ export default function Paso3Pago({
 
       <div className="mt-4 flex items-center justify-between gap-3 rounded-xl bg-navy px-4 py-3.5 text-white" aria-live="polite">
         <span className="text-[15px] font-medium text-slate-200">{barraTexto}</span>
-        <span className="text-[18px] font-bold">{formatoPeso(totalMostrado)}</span>
+        <span className="tabular-nums text-[18px] font-bold">{formatoPeso(totalMostrado)}</span>
       </div>
 
       <div className="mt-4 space-y-3" role="radiogroup" aria-label="¿Cómo querés pagar?">
@@ -50,7 +50,7 @@ export default function Paso3Pago({
           <span className="flex items-start gap-3">
             <Radio activo={pago === 'transferencia'} />
             <span>
-              <span className="block text-[19px] font-bold text-tinta">Transferencia — {formatoPeso(contado)}</span>
+              <span className="block tabular-nums text-[19px] font-bold text-tinta">Transferencia — {formatoPeso(contado)}</span>
               <span className="block text-[15px] text-[#475569]">
                 Con 15% de descuento. Te mostramos el alias.
               </span>
@@ -66,7 +66,7 @@ export default function Paso3Pago({
           <span className="flex items-start gap-3">
             <Radio activo={pago === 'mp'} />
             <span>
-              <span className="block text-[19px] font-bold text-tinta">Mercado Pago — {formatoPeso(contado)}</span>
+              <span className="block tabular-nums text-[19px] font-bold text-tinta">Mercado Pago — {formatoPeso(contado)}</span>
               <span className="block text-[15px] text-[#475569]">
                 Con 15% de descuento. Dinero en cuenta o débito.
               </span>
@@ -82,7 +82,7 @@ export default function Paso3Pago({
           <span className="flex items-start gap-3">
             <Radio activo={pago === 'cuotas'} />
             <span>
-              <span className="block text-[19px] font-bold text-tinta">3 cuotas de {formatoPeso(cuota)}</span>
+              <span className="block tabular-nums text-[19px] font-bold text-tinta">3 cuotas de {formatoPeso(cuota)}</span>
               <span className="block text-[15px] text-[#475569]">Sin interés, con tarjeta de crédito.</span>
             </span>
           </span>

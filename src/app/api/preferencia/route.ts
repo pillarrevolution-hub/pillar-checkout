@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
   }
   if (!payload) return NextResponse.json({ error: 'Link inválido' }, { status: 400 });
   if (payload.pagada) {
-    return NextResponse.json({ error: 'Este pedido ya está pago ✅' }, { status: 409 });
+    return NextResponse.json({ error: 'Este pedido ya está pago.' }, { status: 409 });
   }
 
   const retiroModo: 'red' | 'colegio' | '' =
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
     refEnvio = retiroModo;
   } else if (envioLocalidadTexto) {
     const tarifa = buscarTarifa(envioLocalidadTexto, payload.envios?.tarifas ?? []);
-    if (!tarifa) return NextResponse.json({ error: 'No encontramos esa localidad en el tarifario' }, { status: 400 });
+    if (!tarifa) return NextResponse.json({ error: 'No encontramos esa localidad — volvé al paso anterior y probá de nuevo' }, { status: 400 });
     envioLocalidadCanonica = tarifa.l;
     eleccion = { modo: 'envio', monto: payload.envioAdentro ? 0 : tarifa.m };
     refEnvio = tarifa.l;
@@ -70,6 +70,9 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json({ init_point: pref.init_point });
   } catch (e: any) {
-    return NextResponse.json({ error: e.message ?? 'No se pudo crear el pago' }, { status: 502 });
+    // Nunca se le manda al paciente el motivo técnico (token faltante,
+    // respuesta de Mercado Pago, etc.) — eso queda en el log del server.
+    console.error('preferencia: no se pudo crear el pago —', e?.message ?? e);
+    return NextResponse.json({ error: 'No pudimos iniciar el pago — probá de nuevo en un ratito' }, { status: 502 });
   }
 }

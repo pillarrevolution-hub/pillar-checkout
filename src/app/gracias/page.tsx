@@ -67,7 +67,7 @@ export default async function Gracias({
       </p>
 
       {resumen && (
-        <div className="mt-5 rounded-xl bg-[#f1f5fa] p-4 text-left text-[14px] leading-relaxed text-[#475569]">
+        <div className="mt-5 rounded-xl bg-[#f1f5fa] p-4 text-left text-[14px] tabular-nums leading-relaxed text-[#475569]">
           <p>Recibís: {resumen.recibo}</p>
           <p>
             Pagaste: {formatoPeso(resumen.monto)} por Mercado Pago
@@ -78,13 +78,8 @@ export default async function Gracias({
       )}
 
       {wsp && (
-        <a
-          href={wsp}
-          className="mt-5 block w-full rounded-[14px] bg-[#f2c94c] px-5 py-4 text-center text-[18px] font-extrabold text-[#1c2430] hover:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#3d8ee7]"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Avisarnos por WhatsApp
+        <a href={wsp} className="wa-ayuda mt-5" target="_blank" rel="noopener noreferrer">
+          Si querés, avisanos por WhatsApp para que lo veamos más rápido (no es necesario)
         </a>
       )}
       <p className="mt-4 text-[13px] text-[#475569]">

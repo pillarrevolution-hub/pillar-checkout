@@ -50,7 +50,7 @@ export default function Paso1Recibir({
         </button>
 
         {recibe === 'retiro' && (
-          <div className="ml-6 space-y-2" role="radiogroup" aria-label="¿Dónde retirás?">
+          <div className="ml-6 space-y-2" role="group" aria-label="¿Dónde retirás?">
             <button
               className={`opcion-chica ${retiroModo === 'red' ? 'border-[#3d8ee7] bg-[#f2f8ff]' : 'border-slate-200 bg-white hover:border-slate-300'}`}
               onClick={() => onElegirRetiroModo('red')}
@@ -66,7 +66,7 @@ export default function Paso1Recibir({
                   </span>
                 </span>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/farmacias-red.png" alt="Farmacias RED" className="h-14 shrink-0" />
+                <img src="/farmacias-red.png" alt="Farmacias RED" width={498} height={302} className="h-14 w-auto shrink-0" />
               </span>
             </button>
             <button

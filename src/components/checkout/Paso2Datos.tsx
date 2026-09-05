@@ -129,7 +129,7 @@ export default function Paso2Datos({
                 )}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-[15px] font-medium text-[#2f6fbd] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee7]"
+                className="-mx-1 flex min-h-[44px] items-center gap-1.5 rounded-lg px-1 py-3 text-[15px] font-medium text-[#2f6fbd] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee7]"
               >
                 <IconPin className="h-4 w-4" /> Ver esta sucursal en el mapa
               </a>
@@ -215,7 +215,7 @@ export default function Paso2Datos({
 
             {tarifaEncontrada && (
               <div className="rounded-xl bg-[#eaf3fd] p-4 text-[#2d5175]" aria-live="polite">
-                <p className="text-[18px] font-bold">
+                <p className="tabular-nums text-[18px] font-bold">
                   El envío a {tituloLocalidad(tarifaEncontrada.l)} cuesta {formatoPeso(tarifaEncontrada.m)}
                 </p>
                 {tarifaEncontrada.t && (

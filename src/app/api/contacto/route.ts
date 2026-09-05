@@ -46,7 +46,10 @@ export async function POST(req: NextRequest) {
 
   const malvinas = (process.env.MALVINAS_URL ?? '').replace(/\/$/, '');
   const secreto = process.env.CHECKOUT_SECRET ?? '';
-  if (!malvinas || !secreto) return NextResponse.json({ error: 'Config incompleta' }, { status: 500 });
+  if (!malvinas || !secreto) {
+    console.error('contacto: falta MALVINAS_URL o CHECKOUT_SECRET en las variables de entorno');
+    return NextResponse.json({ error: 'No se pudo guardar' }, { status: 500 });
+  }
 
   const res = await fetch(`${malvinas}/api/cotizaciones/${payload.o}/contacto-externa`, {
     method: 'POST',

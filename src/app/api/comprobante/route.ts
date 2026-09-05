@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
   }
   if (!payload) return NextResponse.json({ error: 'Link inválido' }, { status: 400 });
   if (payload.pagada) {
-    return NextResponse.json({ error: 'Este pedido ya está pago ✅' }, { status: 409 });
+    return NextResponse.json({ error: 'Este pedido ya está pago.' }, { status: 409 });
   }
 
   const nombreArchivo = typeof body?.nombreArchivo === 'string' ? body.nombreArchivo.slice(0, 200) : '';
@@ -30,7 +30,10 @@ export async function POST(req: NextRequest) {
 
   const malvinas = (process.env.MALVINAS_URL ?? '').replace(/\/$/, '');
   const secreto = process.env.CHECKOUT_SECRET ?? '';
-  if (!malvinas || !secreto) return NextResponse.json({ error: 'Config incompleta' }, { status: 500 });
+  if (!malvinas || !secreto) {
+    console.error('comprobante: falta MALVINAS_URL o CHECKOUT_SECRET en las variables de entorno');
+    return NextResponse.json({ error: 'No pudimos guardar el comprobante — probá de nuevo en un ratito' }, { status: 500 });
+  }
 
   const res = await fetch(`${malvinas}/api/cotizaciones/${payload.o}/comprobante-externa`, {
     method: 'POST',

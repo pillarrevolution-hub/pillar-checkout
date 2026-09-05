@@ -39,17 +39,17 @@ export default function Home({
 
       <div className="mt-5 rounded-2xl bg-gradient-to-b from-[#0f2036] to-navy p-5 text-white">
         <p className="text-[15px] text-slate-300">
-          Valor del tratamiento: <s className="text-slate-400">{formatoPeso(li)}</s>
+          Valor del tratamiento: <s className="tabular-nums text-slate-400">{formatoPeso(li)}</s>
         </p>
         <p className="mt-1">
-          <span className="font-sans text-[40px] font-bold leading-none">{formatoPeso(contado)}</span>
+          <span className="font-sans text-[40px] font-bold tabular-nums leading-none">{formatoPeso(contado)}</span>
         </p>
         <p className="mt-1 text-sm text-slate-300">pagando de contado</p>
         <span className="mt-3 inline-block rounded-full bg-[#f2c94c] px-3.5 py-1.5 text-xs font-extrabold uppercase tracking-wide text-[#1c2430]">
           15% de descuento pagando de contado
         </span>
         <p className="mt-3 text-[13px] text-slate-300">
-          o 3 cuotas sin interés de {formatoPeso(cuotaSinEnvio)}
+          o 3 cuotas sin interés de <span className="tabular-nums">{formatoPeso(cuotaSinEnvio)}</span>
         </p>
       </div>
       <p className="mt-2 text-[11px] text-[#475569]">
@@ -71,7 +71,7 @@ export default function Home({
       >
         Pagar mi tratamiento
       </button>
-      <p className="mt-2 text-center text-[13px] text-[#475569]">Son 3 pasos, te lleva 2 minutos.</p>
+      <p className="mt-2 text-center text-[13px] text-[#475569]">Te lleva 2 minutos.</p>
 
       {whatsapp && (
         <a

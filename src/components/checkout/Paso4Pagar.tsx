@@ -65,9 +65,12 @@ export default function Paso4Pagar({
     <div className="tarjeta fade-paso flex min-h-[520px] flex-col">
       {pago === 'transferencia' ? (
         <>
-          <h2 className="font-sans text-[26px] font-bold text-tinta">
+          <h2 className="font-sans text-[26px] font-bold tabular-nums text-tinta">
             Transferí {formatoPeso(monto)} a este alias
           </h2>
+          <p className="mt-2 text-[15px] text-[#475569]">
+            1. Copiá el alias o el monto y transferí desde tu banco o billetera.
+          </p>
 
           {comprobanteRecibido && (
             <div className="mt-4 rounded-xl border border-violet-200 bg-violet-50 p-4 text-[14px] leading-relaxed text-violet-900">
@@ -93,7 +96,7 @@ export default function Paso4Pagar({
               </button>
             </div>
             <div className="flex items-center justify-between gap-2 rounded-xl bg-[#f1f5fa] p-4">
-              <p ref={montoRef} className="text-[20px] font-extrabold text-tinta">
+              <p ref={montoRef} className="tabular-nums text-[20px] font-extrabold text-tinta">
                 {formatoPeso(monto)}
               </p>
               <button
@@ -105,7 +108,7 @@ export default function Paso4Pagar({
               </button>
             </div>
 
-            <p className="pt-2 text-[18px] text-tinta">Cuando termines, subí la foto del comprobante:</p>
+            <p className="pt-2 text-[18px] text-tinta">2. Cuando termines, subí la foto del comprobante:</p>
             <label
               className={`block cursor-pointer rounded-[14px] border-2 border-dashed p-6 text-center text-[15px] transition-colors focus-within:ring-2 focus-within:ring-[#3d8ee7] ${
                 archivo ? 'border-green-400 bg-green-50 text-green-800' : 'border-slate-300 text-[#475569] hover:border-[#3d8ee7]'
@@ -138,7 +141,7 @@ export default function Paso4Pagar({
         </>
       ) : (
         <>
-          <h2 className="font-sans text-[26px] font-bold text-tinta">
+          <h2 className="font-sans text-[26px] font-bold tabular-nums text-tinta">
             Vas a pagar {formatoPeso(monto)} con Mercado Pago
           </h2>
           <div className="mt-5">

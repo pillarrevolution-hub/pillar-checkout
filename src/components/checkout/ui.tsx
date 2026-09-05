@@ -89,7 +89,7 @@ export function PasoFooter({
         <div className="aviso-error flex flex-wrap items-center justify-between gap-2" role="alert">
           <span>No pudimos guardar tus datos, reintentá.</span>
           <button
-            className="rounded-lg border border-amber-400 bg-white px-3 py-1.5 font-bold text-amber-900 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee7]"
+            className="min-h-[44px] rounded-lg border border-amber-400 bg-white px-4 py-2.5 font-bold text-amber-900 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee7]"
             onClick={onReintentarContacto}
           >
             Reintentar
