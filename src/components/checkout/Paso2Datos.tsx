@@ -15,6 +15,8 @@ export default function Paso2Datos({
   leyendaEnvio,
   localidades,
   whatsapp,
+  errorContacto,
+  onReintentarContacto,
   farmaciaRed,
   setFarmaciaRed,
   colegioLocalidad,
@@ -45,6 +47,8 @@ export default function Paso2Datos({
   leyendaEnvio: string;
   localidades: readonly string[];
   whatsapp: string | null;
+  errorContacto?: boolean;
+  onReintentarContacto?: () => void;
   farmaciaRed: string;
   setFarmaciaRed: (v: string) => void;
   colegioLocalidad: string;
@@ -79,13 +83,13 @@ export default function Paso2Datos({
     falta = !farmaciaRed ? 'Elegí en qué Farmacia RED lo retirás' : 'Falta tu celular';
   } else if (recibe === 'retiro' && retiroModo === 'colegio') {
     puedeAvanzar = colegioLocalidad.trim().length >= 2 && celularOk(celular);
-    falta = colegioLocalidad.trim().length < 2 ? 'Falta la localidad' : 'Falta tu celular';
+    falta = colegioLocalidad.trim().length < 2 ? 'Falta la localidad donde retirás' : 'Falta tu celular';
   } else if (recibe === 'envio') {
     puedeAvanzar = !!tarifaEncontrada && calle.trim().length >= 4 && celularOk(celular) && !noEncontrada;
     falta = !envioLocalidadTexto.trim()
-      ? 'Falta la localidad'
+      ? 'Falta la localidad de envío'
       : !tarifaEncontrada
-        ? 'Elegí una localidad de la lista'
+        ? 'Elegí una localidad de la lista de sugerencias'
         : calle.trim().length < 4
           ? 'Falta la calle y el número'
           : 'Falta tu celular';
@@ -99,19 +103,25 @@ export default function Paso2Datos({
         <>
           <h2 className="mt-5 font-sans text-[26px] font-bold text-tinta">¿En qué Farmacia RED lo retirás?</h2>
           <div className="mt-5 space-y-3">
-            <select
-              className="input-paso"
-              value={farmaciaRed}
-              onChange={(e) => setFarmaciaRed(e.target.value)}
-              onBlur={onBlurGuardar}
-            >
-              <option value="">Elegí una sucursal…</option>
-              {FARMACIAS_RED.map((f) => (
-                <option key={f.nombre} value={f.nombre}>
-                  {f.nombre} — {f.direccion}
-                </option>
-              ))}
-            </select>
+            <div>
+              <label className="label-paso" htmlFor="farmacia-red">
+                Sucursal
+              </label>
+              <select
+                id="farmacia-red"
+                className="input-paso"
+                value={farmaciaRed}
+                onChange={(e) => setFarmaciaRed(e.target.value)}
+                onBlur={onBlurGuardar}
+              >
+                <option value="">Elegí una sucursal…</option>
+                {FARMACIAS_RED.map((f) => (
+                  <option key={f.nombre} value={f.nombre}>
+                    {f.nombre} — {f.direccion}
+                  </option>
+                ))}
+              </select>
+            </div>
             {farmaciaRed && (
               <a
                 href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
@@ -119,7 +129,7 @@ export default function Paso2Datos({
                 )}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-[15px] font-medium text-[#2f6fbd] hover:underline"
+                className="flex items-center gap-1.5 text-[15px] font-medium text-[#2f6fbd] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee7]"
               >
                 <IconPin className="h-4 w-4" /> Ver esta sucursal en el mapa
               </a>
@@ -137,19 +147,25 @@ export default function Paso2Datos({
         <>
           <h2 className="mt-5 font-sans text-[26px] font-bold text-tinta">¿En qué localidad lo retirás?</h2>
           <div className="mt-5 space-y-3">
-            <input
-              className="input-paso"
-              list="localidades-colegio"
-              placeholder="Ej: Alta Gracia"
-              value={colegioLocalidad}
-              onChange={(e) => setColegioLocalidad(e.target.value)}
-              onBlur={onBlurGuardar}
-            />
-            <datalist id="localidades-colegio">
-              {localidades.map((l) => (
-                <option key={l} value={l} />
-              ))}
-            </datalist>
+            <div>
+              <label className="label-paso" htmlFor="colegio-localidad">
+                Localidad
+              </label>
+              <input
+                id="colegio-localidad"
+                className="input-paso"
+                list="localidades-colegio"
+                placeholder="Ej: Alta Gracia"
+                value={colegioLocalidad}
+                onChange={(e) => setColegioLocalidad(e.target.value)}
+                onBlur={onBlurGuardar}
+              />
+              <datalist id="localidades-colegio">
+                {localidades.map((l) => (
+                  <option key={l} value={l} />
+                ))}
+              </datalist>
+            </div>
             <div className="rounded-xl bg-[#eaf3fd] p-4 text-[15px] leading-relaxed text-[#2d5175]">
               A través de un convenio con el Colegio de Farmacéuticos de la Provincia de Córdoba te
               informaremos en cuál farmacia de tu localidad podrás retirar cuando ya esté elaborado
@@ -170,12 +186,16 @@ export default function Paso2Datos({
           <h2 className="mt-5 font-sans text-[26px] font-bold text-tinta">¿A dónde lo mandamos?</h2>
           <div className="mt-5 space-y-3">
             <div>
+              <label className="label-paso" htmlFor="envio-localidad">
+                Localidad
+              </label>
               <div className="relative">
                 <input
+                  id="envio-localidad"
                   className="input-paso"
                   list="localidades-envio"
                   autoComplete="off"
-                  placeholder="Localidad"
+                  placeholder="Ej: Alta Gracia"
                   value={envioLocalidadTexto}
                   onChange={(e) => setEnvioLocalidadTexto(e.target.value)}
                   onBlur={onBlurGuardar}
@@ -194,7 +214,7 @@ export default function Paso2Datos({
             </div>
 
             {tarifaEncontrada && (
-              <div className="rounded-xl bg-[#eaf3fd] p-4 text-[#2d5175]">
+              <div className="rounded-xl bg-[#eaf3fd] p-4 text-[#2d5175]" aria-live="polite">
                 <p className="text-[18px] font-bold">
                   El envío a {tituloLocalidad(tarifaEncontrada.l)} cuesta {formatoPeso(tarifaEncontrada.m)}
                 </p>
@@ -206,12 +226,12 @@ export default function Paso2Datos({
                       : `${tarifaEncontrada.t} desde el despacho.`}
                   </p>
                 )}
-                <p className="mt-2 text-[13px] text-[#5c7ba0]">{leyendaEnvio}</p>
+                <p className="mt-2 text-[13px] text-[#2d5175]">{leyendaEnvio}</p>
               </div>
             )}
 
             {noEncontrada && (
-              <div className="rounded-xl bg-amber-50 p-4 text-[15px] leading-relaxed text-amber-900">
+              <div className="rounded-xl bg-amber-50 p-4 text-[15px] leading-relaxed text-amber-900" aria-live="polite">
                 <p className="font-bold">
                   Todavía no llegamos a «{envioLocalidadTexto.trim()}» con envío a domicilio.
                 </p>
@@ -221,7 +241,7 @@ export default function Paso2Datos({
                 </p>
                 <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                   <button
-                    className="flex-1 rounded-xl border border-amber-300 bg-white px-4 py-2.5 text-[14px] font-bold text-amber-900 hover:bg-amber-100"
+                    className="flex-1 rounded-xl border border-amber-300 bg-white px-4 py-2.5 text-[14px] font-bold text-amber-900 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee7]"
                     onClick={onIrARetiro}
                   >
                     Retirar en farmacia
@@ -234,7 +254,7 @@ export default function Paso2Datos({
                       )}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex-1 rounded-xl border border-amber-300 bg-white px-4 py-2.5 text-center text-[14px] font-bold text-amber-900 hover:bg-amber-100"
+                      className="flex-1 rounded-xl border border-amber-300 bg-white px-4 py-2.5 text-center text-[14px] font-bold text-amber-900 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee7]"
                     >
                       Consultar por WhatsApp
                     </a>
@@ -243,36 +263,60 @@ export default function Paso2Datos({
               </div>
             )}
 
-            <input
-              className="input-paso"
-              placeholder="Calle y número"
-              value={calle}
-              onChange={(e) => setCalle(e.target.value)}
-              onBlur={onBlurGuardar}
-            />
-            <input
-              className="input-paso"
-              placeholder="Piso y depto (si vivís en departamento)"
-              value={piso}
-              onChange={(e) => setPiso(e.target.value)}
-              onBlur={onBlurGuardar}
-            />
-            <input
-              className="input-paso w-1/2"
-              inputMode="numeric"
-              placeholder="Código postal"
-              value={cp}
-              onChange={(e) => setCp(e.target.value)}
-              onBlur={onBlurGuardar}
-            />
-            <textarea
-              className="input-paso"
-              rows={2}
-              placeholder="Referencias para la entrega o comentarios (ej. portón negro, tocar timbre B)"
-              value={referencias}
-              onChange={(e) => setReferencias(e.target.value)}
-              onBlur={onBlurGuardar}
-            />
+            <div>
+              <label className="label-paso" htmlFor="calle">
+                Calle y número
+              </label>
+              <input
+                id="calle"
+                className="input-paso"
+                placeholder="Ej: Av. Colón 1234"
+                value={calle}
+                onChange={(e) => setCalle(e.target.value)}
+                onBlur={onBlurGuardar}
+              />
+            </div>
+            <div>
+              <label className="label-paso" htmlFor="piso">
+                Piso y depto <span className="font-normal text-[#475569]">(opcional)</span>
+              </label>
+              <input
+                id="piso"
+                className="input-paso"
+                placeholder="Ej: 3° B"
+                value={piso}
+                onChange={(e) => setPiso(e.target.value)}
+                onBlur={onBlurGuardar}
+              />
+            </div>
+            <div className="w-1/2">
+              <label className="label-paso" htmlFor="cp">
+                Código postal <span className="font-normal text-[#475569]">(opcional)</span>
+              </label>
+              <input
+                id="cp"
+                className="input-paso"
+                inputMode="numeric"
+                placeholder="Ej: 5000"
+                value={cp}
+                onChange={(e) => setCp(e.target.value)}
+                onBlur={onBlurGuardar}
+              />
+            </div>
+            <div>
+              <label className="label-paso" htmlFor="referencias">
+                Referencias para la entrega o comentarios <span className="font-normal text-[#475569]">(opcional)</span>
+              </label>
+              <textarea
+                id="referencias"
+                className="input-paso"
+                rows={2}
+                placeholder="Ej: portón negro, tocar timbre B"
+                value={referencias}
+                onChange={(e) => setReferencias(e.target.value)}
+                onBlur={onBlurGuardar}
+              />
+            </div>
             <Celular celular={celular} setCelular={setCelular} onBlur={onBlurGuardar} />
           </div>
         </>
@@ -285,6 +329,8 @@ export default function Paso2Datos({
         onVolver={onVolver}
         whatsapp={whatsapp}
         cotizacion={cotizacion}
+        errorContacto={errorContacto}
+        onReintentarContacto={onReintentarContacto}
       />
     </div>
   );
@@ -300,14 +346,20 @@ function Celular({
   onBlur: () => void;
 }) {
   return (
-    <input
-      className="input-paso"
-      inputMode="tel"
-      placeholder="Tu celular (con código de área, ej. 351 555 0000)"
-      value={celular}
-      onChange={(e) => setCelular(e.target.value)}
-      onBlur={onBlur}
-    />
+    <div>
+      <label className="label-paso" htmlFor="celular">
+        Tu celular
+      </label>
+      <input
+        id="celular"
+        className="input-paso"
+        inputMode="tel"
+        placeholder="Con código de área, ej. 351 555 0000"
+        value={celular}
+        onChange={(e) => setCelular(e.target.value)}
+        onBlur={onBlur}
+      />
+    </div>
   );
 }
 
@@ -321,13 +373,19 @@ function Comentarios({
   onBlur: () => void;
 }) {
   return (
-    <textarea
-      className="input-paso"
-      rows={2}
-      placeholder="Comentarios (opcional)"
-      value={valor}
-      onChange={(e) => setValor(e.target.value)}
-      onBlur={onBlur}
-    />
+    <div>
+      <label className="label-paso" htmlFor="comentarios">
+        Comentarios <span className="font-normal text-[#475569]">(opcional)</span>
+      </label>
+      <textarea
+        id="comentarios"
+        className="input-paso"
+        rows={2}
+        placeholder="Ej: portón negro, tocar timbre B"
+        value={valor}
+        onChange={(e) => setValor(e.target.value)}
+        onBlur={onBlur}
+      />
+    </div>
   );
 }

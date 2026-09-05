@@ -38,14 +38,14 @@ export default function Paso5Confirmacion({
       {whatsapp && (
         <a
           href={linkWhatsApp(whatsapp, mensajeWhatsApp)}
-          className="mt-5 block w-full rounded-[14px] bg-[#f2c94c] px-5 py-4 text-center text-[18px] font-extrabold text-[#1c2430] hover:opacity-95"
+          className="mt-5 block w-full rounded-[14px] bg-[#f2c94c] px-5 py-4 text-center text-[18px] font-extrabold text-[#1c2430] hover:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#3d8ee7]"
           target="_blank"
           rel="noopener noreferrer"
         >
           Avisarnos por WhatsApp
         </a>
       )}
-      <p className="mt-4 text-[13px] text-slate-400">
+      <p className="mt-4 text-[13px] text-[#475569]">
         Podés cerrar esta página. Guardá el link por si querés volver a verla.
       </p>
     </div>

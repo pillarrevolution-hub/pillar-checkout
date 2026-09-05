@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
   formatoPeso,
   listaDerivada,
@@ -22,12 +22,79 @@ import Paso5Confirmacion from './checkout/Paso5Confirmacion';
 // a paso de 4 pantallas. Retiro en Farmacia RED / Colegio de
 // Farmacéuticos, envío a domicilio por localidad con precio al instante
 // (tarifario vivo de Malvinas), sin fecha de entrega. `history.pushState`
-// por paso para que el botón "atrás" del celular funcione.
+// por paso para que el botón "atrás" del celular funcione. Todo el estado
+// del paso a paso vive en UN reducer (v3.1) que se guarda en
+// sessionStorage en cada cambio — un refresh accidental no pierde nada
+// (nunca en localStorage: el celular no debe sobrevivir más que la
+// pestaña).
 // ---------------------------------------------------------------
 
 type Paso = 0 | 1 | 2 | 3 | 4 | 5;
 type Recibe = 'retiro' | 'envio' | null;
 type RetiroModo = 'red' | 'colegio' | '';
+
+type Estado = {
+  paso: Paso;
+  recibe: Recibe;
+  retiroModo: RetiroModo;
+  farmaciaRed: string;
+  colegioLocalidad: string;
+  envioLocalidadTexto: string;
+  calle: string;
+  piso: string;
+  cp: string;
+  referencias: string;
+  comentariosRetiro: string;
+  celular: string;
+  pago: Pago;
+};
+
+const ESTADO_INICIAL: Estado = {
+  paso: 0,
+  recibe: null,
+  retiroModo: '',
+  farmaciaRed: '',
+  colegioLocalidad: '',
+  envioLocalidadTexto: '',
+  calle: '',
+  piso: '',
+  cp: '',
+  referencias: '',
+  comentariosRetiro: '',
+  celular: '',
+  pago: 'transferencia',
+};
+
+type CampoEditable = Exclude<keyof Estado, 'paso'>;
+
+type Accion = { type: 'campo'; campo: CampoEditable; valor: Estado[CampoEditable] } | { type: 'paso'; paso: Paso };
+
+function reducerPaso(estado: Estado, accion: Accion): Estado {
+  switch (accion.type) {
+    case 'campo':
+      return { ...estado, [accion.campo]: accion.valor };
+    case 'paso':
+      return { ...estado, paso: accion.paso };
+    default:
+      return estado;
+  }
+}
+
+function claveDraft(o: number): string {
+  return `pillar-checkout-draft-${o}`;
+}
+
+function cargarDraft(o: number): Estado | null {
+  try {
+    const raw = sessionStorage.getItem(claveDraft(o));
+    if (!raw) return null;
+    const d = JSON.parse(raw);
+    if (typeof d?.paso !== 'number') return null;
+    return { ...ESTADO_INICIAL, ...d };
+  } catch {
+    return null;
+  }
+}
 
 export default function Checkout({
   payload,
@@ -40,42 +107,63 @@ export default function Checkout({
   whatsapp: string | null;
   comprobanteRecibido?: boolean;
 }) {
-  const [paso, setPaso] = useState<Paso>(0);
-  const [recibe, setRecibe] = useState<Recibe>(null);
-  const [retiroModo, setRetiroModo] = useState<RetiroModo>('');
-  const [farmaciaRed, setFarmaciaRed] = useState('');
-  const [colegioLocalidad, setColegioLocalidad] = useState('');
-  const [envioLocalidadTexto, setEnvioLocalidadTexto] = useState('');
-  const [calle, setCalle] = useState('');
-  const [piso, setPiso] = useState('');
-  const [cp, setCp] = useState('');
-  const [referencias, setReferencias] = useState('');
-  const [comentariosRetiro, setComentariosRetiro] = useState('');
-  const [celular, setCelular] = useState('');
-  const [pago, setPago] = useState<Pago>('transferencia');
+  const [estado, dispatch] = useReducer(reducerPaso, undefined, () => cargarDraft(payload.o) ?? ESTADO_INICIAL);
+  const {
+    paso,
+    recibe,
+    retiroModo,
+    farmaciaRed,
+    colegioLocalidad,
+    envioLocalidadTexto,
+    calle,
+    piso,
+    cp,
+    referencias,
+    comentariosRetiro,
+    celular,
+    pago,
+  } = estado;
+
+  function campo<K extends CampoEditable>(nombre: K, valor: Estado[K]) {
+    dispatch({ type: 'campo', campo: nombre, valor });
+  }
 
   const [subiendo, setSubiendo] = useState(false);
   const [errorComprobante, setErrorComprobante] = useState('');
   const [comprobanteListo, setComprobanteListo] = useState(false);
   const [cargandoMP, setCargandoMP] = useState(false);
   const [errorMP, setErrorMP] = useState('');
+  const [errorContacto, setErrorContacto] = useState(false);
 
   const ultimoContacto = useRef('');
 
-  // history.pushState por paso: el botón "atrás" del celular funciona
-  // como el botón "Volver" de cada pantalla.
+  // Borrador en sessionStorage (try/catch: en navegación privada puede
+  // tirar). Nunca en localStorage — el celular no tiene que sobrevivir
+  // más que la pestaña.
   useEffect(() => {
-    window.history.replaceState({ paso: 0 }, '');
+    try {
+      sessionStorage.setItem(claveDraft(payload.o), JSON.stringify(estado));
+    } catch {
+      /* sessionStorage no disponible — sin borrador, no rompe nada */
+    }
+  }, [estado, payload.o]);
+
+  // history.pushState por paso: el botón "atrás" del celular funciona
+  // como el botón "Volver" de cada pantalla. El estado inicial refleja el
+  // paso restaurado del borrador (si lo había).
+  useEffect(() => {
+    window.history.replaceState({ paso: estado.paso }, '');
     function onPop(e: PopStateEvent) {
       const p = (e.state as { paso?: number } | null)?.paso;
-      setPaso((typeof p === 'number' ? p : 0) as Paso);
+      dispatch({ type: 'paso', paso: (typeof p === 'number' ? p : 0) as Paso });
     }
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function irA(n: Paso) {
-    setPaso(n);
+    dispatch({ type: 'paso', paso: n });
     window.history.pushState({ paso: n }, '');
   }
   const volver = () => window.history.back();
@@ -127,6 +215,9 @@ export default function Checkout({
 
   const direccionParaGuardar = recibe === 'envio' ? direccionEnvioCompleta : comentariosRetiro.trim();
 
+  // Guarda contacto/elección en Malvinas. Si falla, NO marca la clave como
+  // guardada (para que el próximo Siguiente — o "Reintentar" — lo
+  // reintente solo) y prende el aviso ámbar; nunca bloquea avanzar.
   async function guardarContacto() {
     const cel = celular.trim();
     const envioLocalidadEnviar = recibe === 'envio' && tarifaEncontrada ? tarifaEncontrada.l : '';
@@ -139,22 +230,28 @@ export default function Checkout({
     if (!cel && !direccionParaGuardar && !envioLocalidadEnviar && !retiroModoEnviar) return;
     const clave = JSON.stringify([cel, direccionParaGuardar, envioLocalidadEnviar, retiroModoEnviar, retiroLugarEnviar, tipoEnviar]);
     if (clave === ultimoContacto.current) return;
-    ultimoContacto.current = clave;
 
-    await fetch('/api/contacto', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ...fuente,
-        celular: cel,
-        direccion: direccionParaGuardar,
-        envioLocalidad: envioLocalidadEnviar,
-        envioMonto: envioMontoEnviar,
-        retiroModo: retiroModoEnviar,
-        retiroLugar: retiroLugarEnviar,
-        tipo: tipoEnviar,
-      }),
-    }).catch(() => {});
+    try {
+      const res = await fetch('/api/contacto', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...fuente,
+          celular: cel,
+          direccion: direccionParaGuardar,
+          envioLocalidad: envioLocalidadEnviar,
+          envioMonto: envioMontoEnviar,
+          retiroModo: retiroModoEnviar,
+          retiroLugar: retiroLugarEnviar,
+          tipo: tipoEnviar,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      ultimoContacto.current = clave;
+      setErrorContacto(false);
+    } catch {
+      setErrorContacto(true);
+    }
   }
 
   // Cambiar de pago cambia el total esperado (contado ↔ cuotas): se
@@ -239,7 +336,7 @@ export default function Checkout({
         }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data?.init_point) throw new Error(data?.error ?? 'No pudimos iniciar el pago');
+      if (!res.ok || !data?.init_point) throw new Error(data?.error ?? 'No pudimos iniciar el pago — probá de nuevo en un ratito');
       window.location.href = data.init_point;
     } catch (e: any) {
       setErrorMP(e.message ?? 'No pudimos iniciar el pago — probá de nuevo en un ratito');
@@ -270,8 +367,10 @@ export default function Checkout({
         recibe={recibe}
         retiroModo={retiroModo}
         whatsapp={whatsapp}
-        onElegirRecibe={setRecibe}
-        onElegirRetiroModo={setRetiroModo}
+        errorContacto={errorContacto}
+        onReintentarContacto={guardarContacto}
+        onElegirRecibe={(r) => campo('recibe', r)}
+        onElegirRetiroModo={(m) => campo('retiroModo', m)}
         onSiguiente={() => {
           guardarContacto();
           irA(2);
@@ -291,28 +390,30 @@ export default function Checkout({
         leyendaEnvio={payload.envios?.leyenda ?? ''}
         localidades={localidades}
         whatsapp={whatsapp}
+        errorContacto={errorContacto}
+        onReintentarContacto={guardarContacto}
         farmaciaRed={farmaciaRed}
-        setFarmaciaRed={setFarmaciaRed}
+        setFarmaciaRed={(v) => campo('farmaciaRed', v)}
         colegioLocalidad={colegioLocalidad}
-        setColegioLocalidad={setColegioLocalidad}
+        setColegioLocalidad={(v) => campo('colegioLocalidad', v)}
         envioLocalidadTexto={envioLocalidadTexto}
-        setEnvioLocalidadTexto={setEnvioLocalidadTexto}
+        setEnvioLocalidadTexto={(v) => campo('envioLocalidadTexto', v)}
         calle={calle}
-        setCalle={setCalle}
+        setCalle={(v) => campo('calle', v)}
         piso={piso}
-        setPiso={setPiso}
+        setPiso={(v) => campo('piso', v)}
         cp={cp}
-        setCp={setCp}
+        setCp={(v) => campo('cp', v)}
         referencias={referencias}
-        setReferencias={setReferencias}
+        setReferencias={(v) => campo('referencias', v)}
         comentarios={comentariosRetiro}
-        setComentarios={setComentariosRetiro}
+        setComentarios={(v) => campo('comentariosRetiro', v)}
         celular={celular}
-        setCelular={setCelular}
+        setCelular={(v) => campo('celular', v)}
         onBlurGuardar={guardarContacto}
         onIrARetiro={() => {
-          setRecibe('retiro');
-          setRetiroModo('');
+          campo('recibe', 'retiro');
+          campo('retiroModo', '');
           irA(1);
         }}
         onSiguiente={() => {
@@ -339,8 +440,10 @@ export default function Checkout({
         contado={t.contado}
         cuota={t.cuota}
         pago={pago}
-        onElegirPago={setPago}
+        onElegirPago={(p) => campo('pago', p)}
         whatsapp={whatsapp}
+        errorContacto={errorContacto}
+        onReintentarContacto={guardarContacto}
         onSiguiente={() => irA(4)}
         onVolver={volver}
       />
@@ -353,6 +456,7 @@ export default function Checkout({
         cotizacion={payload.o}
         pago={pago}
         monto={pago === 'cuotas' ? t.cuotas : t.contado}
+        comprobanteRecibido={comprobanteRecibido && !comprobanteListo}
         subiendo={subiendo}
         errorComprobante={errorComprobante}
         onEnviarComprobante={enviarComprobante}

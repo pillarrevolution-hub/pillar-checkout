@@ -52,7 +52,7 @@ export default function Home({
           o 3 cuotas sin interés de {formatoPeso(cuotaSinEnvio)}
         </p>
       </div>
-      <p className="mt-2 text-[11px] text-slate-400">
+      <p className="mt-2 text-[11px] text-[#475569]">
         Tu medicamento será elaborado por Nueva Farmacia Badra.
       </p>
 
@@ -66,12 +66,12 @@ export default function Home({
       </div>
 
       <button
-        className="mt-6 block w-full rounded-[14px] bg-[#f2c94c] px-5 py-5 text-center text-[21px] font-extrabold text-[#1c2430] transition-opacity hover:opacity-95"
+        className="mt-6 block w-full rounded-[14px] bg-[#f2c94c] px-5 py-5 text-center text-[21px] font-extrabold text-[#1c2430] transition-opacity hover:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#3d8ee7]"
         onClick={onEmpezar}
       >
         Pagar mi tratamiento
       </button>
-      <p className="mt-2 text-center text-[13px] text-slate-400">Son 3 pasos, te lleva 2 minutos.</p>
+      <p className="mt-2 text-center text-[13px] text-[#475569]">Son 3 pasos, te lleva 2 minutos.</p>
 
       {whatsapp && (
         <a

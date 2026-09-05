@@ -7,6 +7,8 @@ export default function Paso1Recibir({
   recibe,
   retiroModo,
   whatsapp,
+  errorContacto,
+  onReintentarContacto,
   onElegirRecibe,
   onElegirRetiroModo,
   onSiguiente,
@@ -17,6 +19,8 @@ export default function Paso1Recibir({
   recibe: 'retiro' | 'envio' | null;
   retiroModo: 'red' | 'colegio' | '';
   whatsapp: string | null;
+  errorContacto?: boolean;
+  onReintentarContacto?: () => void;
   onElegirRecibe: (r: 'retiro' | 'envio') => void;
   onElegirRetiroModo: (m: 'red' | 'colegio') => void;
   onSiguiente: () => void;
@@ -29,10 +33,12 @@ export default function Paso1Recibir({
       <PasoHeader paso={1} />
       <h2 className="mt-5 font-sans text-[26px] font-bold text-tinta">¿Cómo querés recibirlo?</h2>
 
-      <div className="mt-5 space-y-3">
+      <div className="mt-5 space-y-3" role="radiogroup" aria-label="¿Cómo querés recibirlo?">
         <button
           className={`opcion ${recibe === 'retiro' ? 'border-[#3d8ee7] bg-[#f2f8ff]' : 'border-slate-200 bg-white hover:border-slate-300'}`}
           onClick={() => onElegirRecibe('retiro')}
+          role="radio"
+          aria-checked={recibe === 'retiro'}
         >
           <span className="flex items-start gap-3">
             <Radio activo={recibe === 'retiro'} />
@@ -44,10 +50,12 @@ export default function Paso1Recibir({
         </button>
 
         {recibe === 'retiro' && (
-          <div className="ml-6 space-y-2">
+          <div className="ml-6 space-y-2" role="radiogroup" aria-label="¿Dónde retirás?">
             <button
               className={`opcion-chica ${retiroModo === 'red' ? 'border-[#3d8ee7] bg-[#f2f8ff]' : 'border-slate-200 bg-white hover:border-slate-300'}`}
               onClick={() => onElegirRetiroModo('red')}
+              role="radio"
+              aria-checked={retiroModo === 'red'}
             >
               <span className="flex w-full items-center justify-between gap-3">
                 <span className="flex items-center gap-2.5">
@@ -64,6 +72,8 @@ export default function Paso1Recibir({
             <button
               className={`opcion-chica ${retiroModo === 'colegio' ? 'border-[#3d8ee7] bg-[#f2f8ff]' : 'border-slate-200 bg-white hover:border-slate-300'}`}
               onClick={() => onElegirRetiroModo('colegio')}
+              role="radio"
+              aria-checked={retiroModo === 'colegio'}
             >
               <span className="flex items-center gap-2.5">
                 <RadioChico activo={retiroModo === 'colegio'} />
@@ -82,6 +92,8 @@ export default function Paso1Recibir({
           <button
             className={`opcion ${recibe === 'envio' ? 'border-[#3d8ee7] bg-[#f2f8ff]' : 'border-slate-200 bg-white hover:border-slate-300'}`}
             onClick={() => onElegirRecibe('envio')}
+            role="radio"
+            aria-checked={recibe === 'envio'}
           >
             <span className="flex items-start gap-3">
               <Radio activo={recibe === 'envio'} />
@@ -94,7 +106,12 @@ export default function Paso1Recibir({
             </span>
           </button>
         ) : (
-          <div className="opcion cursor-not-allowed border-slate-200 bg-slate-50 opacity-70">
+          <div
+            className="opcion cursor-not-allowed border-slate-200 bg-slate-50 opacity-70"
+            role="radio"
+            aria-checked={false}
+            aria-disabled="true"
+          >
             <span className="flex items-start gap-3">
               <Radio activo={false} />
               <span>
@@ -128,6 +145,8 @@ export default function Paso1Recibir({
         volverLabel="Volver al inicio"
         whatsapp={whatsapp}
         cotizacion={cotizacion}
+        errorContacto={errorContacto}
+        onReintentarContacto={onReintentarContacto}
       />
     </div>
   );

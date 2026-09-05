@@ -48,6 +48,8 @@ export function AyudaWhatsApp({ whatsapp, cotizacion }: { whatsapp: string | nul
 }
 
 // Footer estándar de cada paso: Siguiente + Volver + ayuda por WhatsApp.
+// errorContacto: guardarContacto falló silenciosamente (no bloquea avanzar,
+// pero avisa y deja reintentar a mano).
 export function PasoFooter({
   onSiguiente,
   siguienteDeshabilitado,
@@ -56,6 +58,8 @@ export function PasoFooter({
   volverLabel = 'Volver',
   whatsapp,
   cotizacion,
+  errorContacto,
+  onReintentarContacto,
 }: {
   onSiguiente?: () => void;
   siguienteDeshabilitado?: boolean;
@@ -64,6 +68,8 @@ export function PasoFooter({
   volverLabel?: string;
   whatsapp: string | null;
   cotizacion: number;
+  errorContacto?: boolean;
+  onReintentarContacto?: () => void;
 }) {
   return (
     <div className="mt-auto space-y-3 pt-6">
@@ -73,9 +79,22 @@ export function PasoFooter({
             Siguiente
           </button>
           {siguienteDeshabilitado && falta && (
-            <p className="text-center text-[16px] font-medium text-amber-700">{falta}</p>
+            <p className="text-center text-[16px] font-medium text-amber-700" aria-live="polite">
+              {falta}
+            </p>
           )}
         </>
+      )}
+      {errorContacto && (
+        <div className="aviso-error flex flex-wrap items-center justify-between gap-2" role="alert">
+          <span>No pudimos guardar tus datos, reintentá.</span>
+          <button
+            className="rounded-lg border border-amber-400 bg-white px-3 py-1.5 font-bold text-amber-900 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee7]"
+            onClick={onReintentarContacto}
+          >
+            Reintentar
+          </button>
+        </div>
       )}
       <button className="btn-volver" onClick={onVolver}>
         {volverLabel}
