@@ -44,7 +44,6 @@ type Estado = {
   piso: string;
   cp: string;
   referencias: string;
-  comentariosRetiro: string;
   celular: string;
   pago: Pago;
 };
@@ -60,7 +59,6 @@ const ESTADO_INICIAL: Estado = {
   piso: '',
   cp: '',
   referencias: '',
-  comentariosRetiro: '',
   celular: '',
   pago: 'transferencia',
 };
@@ -124,7 +122,6 @@ export default function Checkout({
     piso,
     cp,
     referencias,
-    comentariosRetiro,
     celular,
     pago,
   } = estado;
@@ -132,6 +129,13 @@ export default function Checkout({
   function campo<K extends CampoEditable>(nombre: K, valor: Estado[K]) {
     dispatch({ type: 'campo', campo: nombre, valor });
   }
+
+  // Hasta que el borrador se restaure (o se confirme que no había
+  // ninguno), no sabemos qué paso mostrar: mientras tanto se pinta un
+  // placeholder neutro (nunca la Home) para que el HTML del server y el
+  // primer render del cliente coincidan siempre, sea cual sea el paso
+  // real al que se vaya a volver.
+  const [listo, setListo] = useState(false);
 
   const [subiendo, setSubiendo] = useState(false);
   const [errorComprobante, setErrorComprobante] = useState('');
@@ -172,6 +176,7 @@ export default function Checkout({
     const draft = cargarDraft(payload.o);
     if (draft) dispatch({ type: 'restaurar', estado: draft });
     window.history.replaceState({ paso: draft?.paso ?? 0 }, '');
+    setListo(true);
     function onPop(e: PopStateEvent) {
       const p = (e.state as { paso?: number } | null)?.paso;
       dispatch({ type: 'paso', paso: (typeof p === 'number' ? p : 0) as Paso });
@@ -232,7 +237,7 @@ export default function Checkout({
     return [calle.trim(), piso.trim()].filter(Boolean).join(' ').concat(localidadDisplay ? `, ${localidadDisplay}` : '');
   }, [calle, piso, tarifaEncontrada, envioLocalidadTexto]);
 
-  const direccionParaGuardar = recibe === 'envio' ? direccionEnvioCompleta : comentariosRetiro.trim();
+  const direccionParaGuardar = recibe === 'envio' ? direccionEnvioCompleta : '';
 
   // Guarda contacto/elección en Malvinas. Si falla, NO marca la clave como
   // guardada (para que el próximo Siguiente — o "Reintentar" — lo
@@ -286,6 +291,32 @@ export default function Checkout({
     guardarContacto();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pago]);
+
+  // "Ir a pagar" te saca del sitio (window.location.href al init_point de
+  // MP): si volvés con el botón atrás del navegador, Chrome suele
+  // restaurar la página desde bfcache tal cual quedó (cargandoMP: true
+  // congelado para siempre, porque el fetch que lo iba a apagar ya
+  // corrió antes de irte). Estos dos efectos cubren las dos formas de
+  // "volver": salir del paso 4 adentro de la SPA (Volver / atrás cambia
+  // el paso) y volver desde afuera vía bfcache (pageshow persisted).
+  useEffect(() => {
+    if (paso !== 4) return;
+    return () => {
+      setCargandoMP(false);
+      setErrorMP('');
+    };
+  }, [paso]);
+
+  useEffect(() => {
+    function onPageShow(e: PageTransitionEvent) {
+      if (e.persisted) {
+        setCargandoMP(false);
+        setErrorMP('');
+      }
+    }
+    window.addEventListener('pageshow', onPageShow);
+    return () => window.removeEventListener('pageshow', onPageShow);
+  }, []);
 
   // Fotos de celular vienen de 5-10 MB y el límite del server es ~3.5 MB:
   // las imágenes grandes se achican en el navegador (máx. 1800 px, JPEG)
@@ -363,6 +394,10 @@ export default function Checkout({
     }
   }
 
+  if (!listo) {
+    return <div className="tarjeta" style={{ minHeight: 520, background: '#edf2f8' }} />;
+  }
+
   if (paso === 0) {
     return (
       <Home
@@ -426,8 +461,6 @@ export default function Checkout({
         setCp={(v) => campo('cp', v)}
         referencias={referencias}
         setReferencias={(v) => campo('referencias', v)}
-        comentarios={comentariosRetiro}
-        setComentarios={(v) => campo('comentariosRetiro', v)}
         celular={celular}
         setCelular={(v) => campo('celular', v)}
         onBlurGuardar={guardarContacto}
@@ -444,6 +477,34 @@ export default function Checkout({
       />
     );
   }
+
+  // Cómo lo recibe, en una frase — la misma base para el resumen del paso
+  // 4 (antes de pagar) y para el mensaje de confirmación del paso 5.
+  const recibo =
+    recibe === 'retiro' && retiroModo === 'red'
+      ? descripcionRecibo({ modo: 'red', sucursal: farmaciaRed })
+      : recibe === 'retiro' && retiroModo === 'colegio'
+        ? descripcionRecibo({ modo: 'colegio', localidad: colegioLocalidad.trim() })
+        : recibe === 'envio'
+          ? descripcionRecibo({ modo: 'envio', direccion: direccionCorta })
+          : '';
+
+  // Resumen corto de 2 líneas para el paso 4 con Mercado Pago: qué eligió
+  // y a qué celular le avisamos, para que la pantalla tenga sentido antes
+  // de pagar (antes era solo el botón, sin ningún contexto).
+  const resumenPaso4: string[] = [];
+  if (recibo) {
+    const montoTexto =
+      recibe === 'envio'
+        ? t.envio > 0
+          ? ` (${formatoPeso(t.envio)})`
+          : payload.envioAdentro
+            ? ' (envío incluido en el precio)'
+            : ''
+        : '';
+    resumenPaso4.push(recibo.charAt(0).toUpperCase() + recibo.slice(1) + montoTexto);
+  }
+  if (celular.trim()) resumenPaso4.push(`Te avisamos al ${celular.trim()}`);
 
   if (paso === 3) {
     const barraTexto =
@@ -483,6 +544,7 @@ export default function Checkout({
         cargandoMP={cargandoMP}
         errorMP={errorMP}
         onPagarMP={pagarConMP}
+        resumen={resumenPaso4}
         whatsapp={whatsapp}
         onVolver={volver}
       />
@@ -490,12 +552,6 @@ export default function Checkout({
   }
 
   if (paso === 5) {
-    const recibo =
-      recibe === 'retiro' && retiroModo === 'red'
-        ? descripcionRecibo({ modo: 'red', sucursal: farmaciaRed })
-        : recibe === 'retiro' && retiroModo === 'colegio'
-          ? descripcionRecibo({ modo: 'colegio', localidad: colegioLocalidad.trim() })
-          : descripcionRecibo({ modo: 'envio', direccion: direccionCorta });
     const mensaje = mensajeConfirmacion({
       nombre: payload.n,
       o: payload.o,
