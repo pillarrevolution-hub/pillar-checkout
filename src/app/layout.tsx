@@ -19,13 +19,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="es">
       <body className={`${archivo.variable} bg-fondo font-sans text-tinta antialiased`}>
         <header className="bg-gradient-to-b from-[#0a1626] to-[#10233c] py-4">
-          <p className="text-center font-archivo text-xl font-extrabold tracking-wide text-white">
-            PILL<span className="text-celeste">.</span>AR
-          </p>
+          <div className="mx-auto flex max-w-2xl items-center justify-between px-4">
+            <p className="font-archivo text-xl font-extrabold tracking-wide text-white">
+              PILL<span className="text-celeste">.</span>AR
+            </p>
+            <p className="text-[13px] font-medium text-white/40">Tu tratamiento</p>
+          </div>
         </header>
         <div className="mx-auto flex min-h-[calc(100vh-60px)] max-w-2xl flex-col px-4 py-8">
           <main className="grow">{children}</main>
-          <footer className="mt-8 text-center text-xs text-slate-400">
+          <footer className="mt-8 text-center text-xs text-[#475569]">
             PILL.AR S.A. · CUIT 30-71816734-1 · Córdoba, Argentina
           </footer>
         </div>

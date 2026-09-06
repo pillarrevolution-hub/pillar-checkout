@@ -21,8 +21,22 @@ export async function crearPreferencia(args: {
   titulo: string;
   monto: number;
   cuotas: 1 | 3;
+  // Nombre corto para el external_reference (log/legacy): localidad de
+  // envío, o el modo de retiro, o 'retiro'.
   envio: string;
   tipo: string;
+  // v3: metadata para reconstruir el mensaje de WhatsApp de /gracias sin
+  // volver a pedirle nada a Malvinas — MP la devuelve tal cual en el pago
+  // (ver obtenerPago). Mercado Pago normaliza las claves a snake_case.
+  metadata: {
+    nombre: string;
+    retiro_modo: string;
+    retiro_lugar: string;
+    envio_localidad: string;
+    envio_monto: number;
+    direccion_texto: string;
+    celular: string;
+  };
 }): Promise<{ init_point: string }> {
   const base = baseUrl();
   const res = await fetch(`${API}/checkout/preferences`, {
@@ -52,7 +66,7 @@ export async function crearPreferencia(args: {
       auto_return: 'approved',
       notification_url: `${base}/api/mp/webhook`,
       statement_descriptor: 'PILLAR',
-      metadata: { cotizacion: args.cotizacion, envio: args.envio, tipo: args.tipo },
+      metadata: { cotizacion: args.cotizacion, tipo: args.tipo, ...args.metadata },
     }),
   });
   const data = await res.json().catch(() => ({}));
@@ -70,6 +84,9 @@ export type PagoMP = {
   payment_method_id?: string;
   payment_type_id?: string;
   installments?: number;
+  // Lo que mandamos en `metadata` al crear la preferencia — MP lo
+  // normaliza a snake_case y lo devuelve tal cual en el pago.
+  metadata?: Record<string, unknown>;
 };
 
 export async function obtenerPago(id: string | number): Promise<PagoMP | null> {
