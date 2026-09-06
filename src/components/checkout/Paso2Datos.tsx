@@ -13,6 +13,7 @@ export default function Paso2Datos({
   retiroModo,
   tarifas,
   leyendaEnvio,
+  envioAdentro,
   localidades,
   whatsapp,
   errorContacto,
@@ -45,6 +46,7 @@ export default function Paso2Datos({
   retiroModo: 'red' | 'colegio' | '';
   tarifas: TarifaEnvio[];
   leyendaEnvio: string;
+  envioAdentro?: boolean;
   localidades: readonly string[];
   whatsapp: string | null;
   errorContacto?: boolean;
@@ -213,7 +215,13 @@ export default function Paso2Datos({
               </datalist>
             </div>
 
-            {tarifaEncontrada && (
+            {tarifaEncontrada && envioAdentro && (
+              <div className="rounded-xl bg-[#eaf3fd] p-4 text-[#2d5175]" aria-live="polite">
+                <p className="tabular-nums text-[18px] font-bold">Envío incluido en el precio</p>
+              </div>
+            )}
+
+            {tarifaEncontrada && !envioAdentro && (
               <div className="rounded-xl bg-[#eaf3fd] p-4 text-[#2d5175]" aria-live="polite">
                 <p className="tabular-nums text-[18px] font-bold">
                   El envío a {tituloLocalidad(tarifaEncontrada.l)} cuesta {formatoPeso(tarifaEncontrada.m)}

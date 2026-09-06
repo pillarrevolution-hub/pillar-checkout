@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
   formatoPeso,
   listaDerivada,
@@ -67,7 +67,10 @@ const ESTADO_INICIAL: Estado = {
 
 type CampoEditable = Exclude<keyof Estado, 'paso'>;
 
-type Accion = { type: 'campo'; campo: CampoEditable; valor: Estado[CampoEditable] } | { type: 'paso'; paso: Paso };
+type Accion =
+  | { type: 'campo'; campo: CampoEditable; valor: Estado[CampoEditable] }
+  | { type: 'paso'; paso: Paso }
+  | { type: 'restaurar'; estado: Estado };
 
 function reducerPaso(estado: Estado, accion: Accion): Estado {
   switch (accion.type) {
@@ -75,6 +78,8 @@ function reducerPaso(estado: Estado, accion: Accion): Estado {
       return { ...estado, [accion.campo]: accion.valor };
     case 'paso':
       return { ...estado, paso: accion.paso };
+    case 'restaurar':
+      return accion.estado;
     default:
       return estado;
   }
@@ -107,7 +112,7 @@ export default function Checkout({
   whatsapp: string | null;
   comprobanteRecibido?: boolean;
 }) {
-  const [estado, dispatch] = useReducer(reducerPaso, undefined, () => cargarDraft(payload.o) ?? ESTADO_INICIAL);
+  const [estado, dispatch] = useReducer(reducerPaso, ESTADO_INICIAL);
   const {
     paso,
     recibe,
@@ -139,8 +144,16 @@ export default function Checkout({
 
   // Borrador en sessionStorage (try/catch: en navegación privada puede
   // tirar). Nunca en localStorage — el celular no tiene que sobrevivir
-  // más que la pestaña.
+  // más que la pestaña. Se salta mientras `estado` siga siendo la MISMA
+  // referencia de ESTADO_INICIAL: ese es el render de montaje, previo a
+  // que el efecto de abajo restaure el borrador — persistirlo pisaría el
+  // borrador real con "paso: 0". Comparar por referencia (no por un ref
+  // aparte tipo "ya restauré") es lo que lo hace a prueba de que este
+  // efecto dispare con el closure viejo (p. ej. por el doble-invoke de
+  // efectos en modo estricto): el closure viejo siempre trae el `estado`
+  // viejo pegado, así que la comparación nunca da falsos positivos.
   useEffect(() => {
+    if (estado === ESTADO_INICIAL) return;
     try {
       sessionStorage.setItem(claveDraft(payload.o), JSON.stringify(estado));
     } catch {
@@ -148,11 +161,17 @@ export default function Checkout({
     }
   }, [estado, payload.o]);
 
-  // history.pushState por paso: el botón "atrás" del celular funciona
-  // como el botón "Volver" de cada pantalla. El estado inicial refleja el
-  // paso restaurado del borrador (si lo había).
-  useEffect(() => {
-    window.history.replaceState({ paso: estado.paso }, '');
+  // El reducer siempre arranca en ESTADO_INICIAL (paso 0) para que el
+  // primer render del cliente coincida con el del server — sessionStorage
+  // no existe en el server, así que leer el borrador durante el init del
+  // reducer generaba un mismatch de hidratación cada vez que había un
+  // borrador guardado. En cambio, se restaura acá con useLayoutEffect
+  // (corre antes de pintar, así no se ve un flash de la Home) y de paso
+  // se deja el history.pushState reflejando el paso restaurado.
+  useLayoutEffect(() => {
+    const draft = cargarDraft(payload.o);
+    if (draft) dispatch({ type: 'restaurar', estado: draft });
+    window.history.replaceState({ paso: draft?.paso ?? 0 }, '');
     function onPop(e: PopStateEvent) {
       const p = (e.state as { paso?: number } | null)?.paso;
       dispatch({ type: 'paso', paso: (typeof p === 'number' ? p : 0) as Paso });
@@ -388,6 +407,7 @@ export default function Checkout({
         retiroModo={retiroModo}
         tarifas={tarifas}
         leyendaEnvio={payload.envios?.leyenda ?? ''}
+        envioAdentro={payload.envioAdentro}
         localidades={localidades}
         whatsapp={whatsapp}
         errorContacto={errorContacto}
