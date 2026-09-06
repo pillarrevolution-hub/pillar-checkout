@@ -52,9 +52,6 @@ export default function Home({
           o 3 cuotas sin interés de <span className="tabular-nums">{formatoPeso(cuotaSinEnvio)}</span>
         </p>
       </div>
-      <p className="mt-2 text-[11px] text-[#475569]">
-        Tu medicamento será elaborado por Nueva Farmacia Badra.
-      </p>
 
       <div className="mt-6 space-y-3">
         {['Elegís cómo recibirlo', 'Dejás tus datos', 'Elegís cómo pagarlo'].map((texto, i) => (

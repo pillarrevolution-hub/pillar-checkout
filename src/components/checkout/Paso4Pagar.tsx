@@ -19,6 +19,7 @@ export default function Paso4Pagar({
   cargandoMP,
   errorMP,
   onPagarMP,
+  resumen,
   whatsapp,
   onVolver,
 }: {
@@ -32,6 +33,7 @@ export default function Paso4Pagar({
   cargandoMP: boolean;
   errorMP: string;
   onPagarMP: () => void;
+  resumen?: string[];
   whatsapp: string | null;
   onVolver: () => void;
 }) {
@@ -62,7 +64,7 @@ export default function Paso4Pagar({
   }
 
   return (
-    <div className="tarjeta fade-paso flex min-h-[520px] flex-col">
+    <div className="tarjeta fade-paso">
       {pago === 'transferencia' ? (
         <>
           <h2 className="font-sans text-[26px] font-bold tabular-nums text-tinta">
@@ -144,6 +146,13 @@ export default function Paso4Pagar({
           <h2 className="font-sans text-[26px] font-bold tabular-nums text-tinta">
             Vas a pagar {formatoPeso(monto)} con Mercado Pago
           </h2>
+          {resumen && resumen.length > 0 && (
+            <div className="mt-4 rounded-xl bg-[#f1f5fa] p-4 text-[14px] leading-relaxed text-[#475569]">
+              {resumen.map((linea) => (
+                <p key={linea}>{linea}</p>
+              ))}
+            </div>
+          )}
           <div className="mt-5">
             <button className="btn-siguiente disabled:cursor-not-allowed disabled:opacity-50" disabled={cargandoMP} onClick={onPagarMP}>
               {cargandoMP ? 'Preparando el pago…' : 'Ir a pagar'}

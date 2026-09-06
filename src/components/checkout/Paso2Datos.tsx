@@ -32,8 +32,6 @@ export default function Paso2Datos({
   setCp,
   referencias,
   setReferencias,
-  comentarios,
-  setComentarios,
   celular,
   setCelular,
   onBlurGuardar,
@@ -65,8 +63,6 @@ export default function Paso2Datos({
   setCp: (v: string) => void;
   referencias: string;
   setReferencias: (v: string) => void;
-  comentarios: string;
-  setComentarios: (v: string) => void;
   celular: string;
   setCelular: (v: string) => void;
   onBlurGuardar: () => void;
@@ -140,7 +136,6 @@ export default function Paso2Datos({
               Cuando esté listo te avisamos por WhatsApp y lo dejamos en esa farmacia a tu nombre.
             </p>
             <Celular celular={celular} setCelular={setCelular} onBlur={onBlurGuardar} />
-            <Comentarios valor={comentarios} setValor={setComentarios} onBlur={onBlurGuardar} />
           </div>
         </>
       )}
@@ -173,12 +168,11 @@ export default function Paso2Datos({
               informaremos en cuál farmacia de tu localidad podrás retirar cuando ya esté elaborado
               tu pedido.
               <p className="mt-2 font-bold">
-                Tranqui, pero con paciencia: el Colegio hace el reparto cada 15 días, así que puede
+                Un detalle: el Colegio hace el reparto cada 15 días, así que este retiro puede
                 demorar un poco más que el envío a domicilio.
               </p>
             </div>
             <Celular celular={celular} setCelular={setCelular} onBlur={onBlurGuardar} />
-            <Comentarios valor={comentarios} setValor={setComentarios} onBlur={onBlurGuardar} />
           </div>
         </>
       )}
@@ -365,33 +359,6 @@ function Celular({
         placeholder="Con código de área, ej. 351 555 0000"
         value={celular}
         onChange={(e) => setCelular(e.target.value)}
-        onBlur={onBlur}
-      />
-    </div>
-  );
-}
-
-function Comentarios({
-  valor,
-  setValor,
-  onBlur,
-}: {
-  valor: string;
-  setValor: (v: string) => void;
-  onBlur: () => void;
-}) {
-  return (
-    <div>
-      <label className="label-paso" htmlFor="comentarios">
-        Comentarios <span className="font-normal text-[#475569]">(opcional)</span>
-      </label>
-      <textarea
-        id="comentarios"
-        className="input-paso"
-        rows={2}
-        placeholder="Ej: portón negro, tocar timbre B"
-        value={valor}
-        onChange={(e) => setValor(e.target.value)}
         onBlur={onBlur}
       />
     </div>
