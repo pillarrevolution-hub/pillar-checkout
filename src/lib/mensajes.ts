@@ -14,11 +14,24 @@ export function mensajeConfirmacion(args: {
 
 export type ReciboElegido =
   | { modo: 'red'; sucursal: string }
-  | { modo: 'colegio'; localidad: string }
+  | { modo: 'colegio'; localidad: string; fecha?: string }
   | { modo: 'envio'; direccion: string };
 
 export function descripcionRecibo(r: ReciboElegido): string {
   if (r.modo === 'red') return `retiro en Farmacia RED ${r.sucursal}`;
-  if (r.modo === 'colegio') return `retiro en una farmacia de ${r.localidad} (Colegio)`;
+  if (r.modo === 'colegio') {
+    return `retiro en una farmacia de ${r.localidad} (Colegio${r.fecha ? `, llega el ${r.fecha}` : ''})`;
+  }
   return `envío a ${r.direccion}`;
+}
+
+// Versión para la caja "Recibís:" de la Confirmación y de /gracias —
+// mismo dato que descripcionRecibo pero con "· llega el {fecha}" en vez
+// de "(Colegio, llega el {fecha})" (pedido de Tomi: formato distinto para
+// esa caja vs. el mensaje de WhatsApp).
+export function reciboMostrado(r: ReciboElegido): string {
+  if (r.modo === 'colegio' && r.fecha) {
+    return `retiro en una farmacia de ${r.localidad} · llega el ${r.fecha}`;
+  }
+  return descripcionRecibo(r);
 }

@@ -1,9 +1,16 @@
 import { linkWhatsApp } from '@/lib/datos';
 import { formatoPeso } from '@/lib/firma';
-import { buscarTarifa, sugerirTarifas, tituloLocalidad, type TarifaEnvio } from '@/lib/envios';
+import {
+  buscarTarifa,
+  matchExactoLocalidad,
+  sugerirLocalidades,
+  sugerirTarifas,
+  tituloLocalidad,
+  type TarifaEnvio,
+} from '@/lib/envios';
 import { FARMACIAS_RED } from '@/lib/farmaciasRed';
 import { PasoFooter, PasoHeader } from './ui';
-import { IconCheck, IconClock, IconMail, IconPhone, IconPin } from '../icons';
+import { IconCalendar, IconCheck, IconClock, IconMail, IconPhone, IconPin } from '../icons';
 
 const celularOk = (v: string) => v.replace(/\D/g, '').length >= 6;
 
@@ -22,6 +29,9 @@ export default function Paso2Datos({
   setFarmaciaRed,
   colegioLocalidad,
   setColegioLocalidad,
+  fechaColegioTexto,
+  onCambiarAEnvio,
+  onCambiarARed,
   envioLocalidadTexto,
   setEnvioLocalidadTexto,
   calle,
@@ -53,6 +63,9 @@ export default function Paso2Datos({
   setFarmaciaRed: (v: string) => void;
   colegioLocalidad: string;
   setColegioLocalidad: (v: string) => void;
+  fechaColegioTexto: string | null;
+  onCambiarAEnvio: () => void;
+  onCambiarARed: () => void;
   envioLocalidadTexto: string;
   setEnvioLocalidadTexto: (v: string) => void;
   calle: string;
@@ -74,14 +87,30 @@ export default function Paso2Datos({
   const sugerencias = recibe === 'envio' ? sugerirTarifas(envioLocalidadTexto, tarifas, 6) : [];
   const noEncontrada = recibe === 'envio' && envioLocalidadTexto.trim().length >= 3 && !tarifaEncontrada;
 
+  // Localidad del Colegio restringida a Córdoba (pedido de Tomi): si
+  // `localidades` viene vacío (link viejo o Malvinas caído) no bloqueamos
+  // a nadie por un dato que no cargó — texto libre como antes.
+  const colegioSinListaDeLocalidades = localidades.length === 0;
+  if (colegioSinListaDeLocalidades && retiroModo === 'colegio') {
+    console.warn('Paso2Datos: localidades vacío — Colegio queda con localidad libre, sin restricción');
+  }
+  const colegioLocalidadOficial = colegioSinListaDeLocalidades ? null : matchExactoLocalidad(colegioLocalidad, localidades);
+  const sugerenciasColegio = colegioSinListaDeLocalidades ? [] : sugerirLocalidades(colegioLocalidad, localidades, 6);
+  const colegioLocalidadBloqueada =
+    !colegioSinListaDeLocalidades &&
+    colegioLocalidad.trim().length >= 3 &&
+    !colegioLocalidadOficial &&
+    sugerenciasColegio.length !== 1;
+
   let puedeAvanzar = false;
   let falta = '';
   if (recibe === 'retiro' && retiroModo === 'red') {
     puedeAvanzar = !!farmaciaRed && celularOk(celular);
     falta = !farmaciaRed ? 'Elegí en qué Farmacia RED lo retirás' : 'Falta tu celular';
   } else if (recibe === 'retiro' && retiroModo === 'colegio') {
-    puedeAvanzar = colegioLocalidad.trim().length >= 2 && celularOk(celular);
-    falta = colegioLocalidad.trim().length < 2 ? 'Falta la localidad donde retirás' : 'Falta tu celular';
+    const localidadOk = colegioSinListaDeLocalidades ? colegioLocalidad.trim().length >= 2 : !!colegioLocalidadOficial;
+    puedeAvanzar = localidadOk && celularOk(celular);
+    falta = !localidadOk ? 'Elegí una localidad de la lista' : 'Falta tu celular';
   } else if (recibe === 'envio') {
     puedeAvanzar = !!tarifaEncontrada && calle.trim().length >= 4 && celularOk(celular) && !noEncontrada;
     falta = !envioLocalidadTexto.trim()
@@ -186,30 +215,82 @@ export default function Paso2Datos({
               <label className="label-paso" htmlFor="colegio-localidad">
                 Localidad
               </label>
-              <input
-                id="colegio-localidad"
-                className="input-paso"
-                list="localidades-colegio"
-                placeholder="Ej: Alta Gracia"
-                value={colegioLocalidad}
-                onChange={(e) => setColegioLocalidad(e.target.value)}
-                onBlur={onBlurGuardar}
-              />
+              <div className="relative">
+                <input
+                  id="colegio-localidad"
+                  className="input-paso"
+                  list="localidades-colegio"
+                  autoComplete="off"
+                  placeholder="Ej: Alta Gracia"
+                  value={colegioLocalidad}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    const oficial = colegioSinListaDeLocalidades ? null : matchExactoLocalidad(raw, localidades);
+                    setColegioLocalidad(oficial ?? raw);
+                  }}
+                  onBlur={onBlurGuardar}
+                />
+                {colegioLocalidadOficial && (
+                  <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-green-600">
+                    <IconCheck className="h-5 w-5" circulo={false} />
+                  </span>
+                )}
+              </div>
               <datalist id="localidades-colegio">
-                {localidades.map((l) => (
+                {(colegioSinListaDeLocalidades ? localidades : sugerenciasColegio).map((l) => (
                   <option key={l} value={l} />
                 ))}
               </datalist>
             </div>
+
             <div className="rounded-xl bg-[#eaf3fd] p-4 text-[15px] leading-relaxed text-[#2d5175]">
               A través de un convenio con el Colegio de Farmacéuticos de la Provincia de Córdoba te
               informaremos en cuál farmacia de tu localidad podrás retirar cuando ya esté elaborado
               tu pedido.
-              <p className="mt-2 font-bold">
-                Un detalle: el Colegio hace el reparto cada 15 días, así que este retiro puede
-                demorar un poco más que el envío a domicilio.
-              </p>
             </div>
+
+            {colegioLocalidadBloqueada ? (
+              <div className="rounded-xl bg-amber-50 p-4 text-[15px] leading-relaxed text-amber-900" aria-live="polite">
+                <p className="font-bold">Por el Colegio solo llegamos a localidades de Córdoba.</p>
+                <p className="mt-1">
+                  Si «{colegioLocalidad.trim()}» está en Córdoba, fijate cómo figura en la lista; si
+                  no, podés pedir envío a domicilio o retirarlo en una Farmacia RED de Córdoba
+                  capital.
+                </p>
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                  <button
+                    className="flex-1 rounded-xl border border-amber-300 bg-white px-4 py-2.5 text-[14px] font-bold text-amber-900 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee7]"
+                    onClick={onCambiarAEnvio}
+                  >
+                    Envío a domicilio
+                  </button>
+                  <button
+                    className="flex-1 rounded-xl border border-amber-300 bg-white px-4 py-2.5 text-[14px] font-bold text-amber-900 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee7]"
+                    onClick={onCambiarARed}
+                  >
+                    Retirar en Farmacia RED
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-[14px] bg-slate-50 p-4" aria-live="polite">
+                <div className="flex items-start gap-2.5">
+                  <IconCalendar className="mt-0.5 h-5 w-5 shrink-0 text-[#2f6fbd]" />
+                  <div>
+                    <p className="text-[18px] font-bold text-tinta">
+                      {fechaColegioTexto
+                        ? `Tu pedido llega a la farmacia de tu localidad el ${fechaColegioTexto}.`
+                        : 'Te confirmamos por WhatsApp el día que llega a tu localidad.'}
+                    </p>
+                    <p className="mt-1 text-[15px] text-[#475569]">
+                      Lo lleva el Colegio de Farmacéuticos con su reparto quincenal. Ese día te
+                      avisamos por WhatsApp en qué farmacia retirarlo.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <Celular celular={celular} setCelular={setCelular} onBlur={onBlurGuardar} />
           </div>
         </>

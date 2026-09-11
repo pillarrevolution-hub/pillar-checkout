@@ -67,6 +67,27 @@ export function sugerirTarifas(texto: string, tarifas: TarifaEnvio[], max = 6): 
   return [...empiezan, ...contienen].slice(0, Math.max(0, max));
 }
 
+// Localidad EXACTA (normalizada, sin tildes/mayúsculas) de la lista de
+// ~497 localidades de Córdoba que manda Malvinas — para el retiro por
+// Colegio de Farmacéuticos, que solo llega a Córdoba. Devuelve el nombre
+// OFICIAL tal como está en la lista (con su casing propio).
+export function matchExactoLocalidad(texto: string, localidades: readonly string[]): string | null {
+  const norm = normalizarLocalidad(texto);
+  if (!norm) return null;
+  return localidades.find((l) => normalizarLocalidad(l) === norm) ?? null;
+}
+
+// Sugerencias para el autocompletar de localidades de Córdoba: primero
+// las que EMPIEZAN con el texto, después las que lo CONTIENEN. Alfabético.
+export function sugerirLocalidades(texto: string, localidades: readonly string[], max = 6): string[] {
+  const norm = normalizarLocalidad(texto);
+  if (!norm) return [];
+  const lista = [...localidades].sort((a, b) => normalizarLocalidad(a).localeCompare(normalizarLocalidad(b)));
+  const empiezan = lista.filter((l) => normalizarLocalidad(l).startsWith(norm));
+  const contienen = lista.filter((l) => !empiezan.includes(l) && normalizarLocalidad(l).includes(norm));
+  return [...empiezan, ...contienen].slice(0, Math.max(0, max));
+}
+
 // Título prolijo para mostrar ("ALTA GRACIA" → "Alta Gracia"); el valor
 // que viaja a Malvinas sigue siendo el original en MAYÚSCULAS.
 export function tituloLocalidad(s: string): string {

@@ -1,4 +1,5 @@
 import { obtenerDatos, linkWhatsApp, whatsappNumero } from '@/lib/datos';
+import { resolverHoy } from '@/lib/colegioFechas';
 import { IconCheck, IconLock } from '@/components/icons';
 import Checkout from '@/components/Checkout';
 
@@ -7,9 +8,16 @@ export const dynamic = 'force-dynamic';
 // LINK CORTO del checkout: /c/{nº}/{firma}. Los datos se piden VIVOS a
 // Malvinas — precio vigente siempre, y si ya está paga no se paga dos
 // veces. La firma la valida Malvinas (checkout-data).
-export default async function CotizacionCorta({ params }: { params: { id: string; t: string } }) {
+export default async function CotizacionCorta({
+  params,
+  searchParams,
+}: {
+  params: { id: string; t: string };
+  searchParams: { hoy?: string };
+}) {
   const datos = await obtenerDatos(params.id, params.t);
   const numero = whatsappNumero();
+  const hoy = resolverHoy(searchParams.hoy);
 
   if (!datos) {
     return (
@@ -58,6 +66,7 @@ export default async function CotizacionCorta({ params }: { params: { id: string
       fuente={{ c: params.id, t: params.t }}
       whatsapp={numero}
       comprobanteRecibido={datos.comprobanteRecibido === true}
+      hoy={hoy.toISOString()}
     />
   );
 }

@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "test:colegio": "node --test src/lib/__tests__/colegioFechas.test.ts"
   },
   "dependencies": {
     "next": "^14.2.15",

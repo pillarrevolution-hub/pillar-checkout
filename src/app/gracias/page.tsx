@@ -73,7 +73,7 @@ export default async function Gracias({
 
       {resumen && (
         <div className="mt-5 rounded-xl bg-[#f1f5fa] p-4 text-left text-[14px] tabular-nums leading-relaxed text-[#475569]">
-          <p>Recibís: {resumen.recibo}</p>
+          <p>Recibís: {resumen.reciboMostrado}</p>
           {farmaciaRedInfo && (
             <p className="text-[13px] text-[#64748b]">
               {farmaciaRedInfo.direccion} · {farmaciaRedInfo.horario} ·{' '}

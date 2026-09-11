@@ -1,5 +1,5 @@
 import { obtenerPago, type PagoMP } from './mp';
-import { descripcionRecibo } from './mensajes';
+import { descripcionRecibo, reciboMostrado } from './mensajes';
 
 // Aviso del pago aprobado a Malvinas (pagada-externa): lo usan el webhook
 // de MP y TAMBIÉN la página /gracias al volver del pago — así la
@@ -58,6 +58,7 @@ export type ResumenPago = {
   tipo: 'contado' | 'cuotas' | '';
   celular: string;
   recibo: string;
+  reciboMostrado: string;
   retiroModo: string;
   retiroLugar: string;
 };
@@ -66,17 +67,21 @@ function resumenDesdePago(pago: PagoMP, cotizacionId: string): ResumenPago {
   const m = (pago.metadata ?? {}) as Record<string, unknown>;
   const retiroModo = typeof m.retiro_modo === 'string' ? m.retiro_modo : '';
   const retiroLugar = typeof m.retiro_lugar === 'string' ? m.retiro_lugar : '';
+  const retiroFechaColegio = typeof m.retiro_fecha_colegio === 'string' ? m.retiro_fecha_colegio : '';
   const envioLocalidad = typeof m.envio_localidad === 'string' ? m.envio_localidad : '';
   const direccionTexto = typeof m.direccion_texto === 'string' ? m.direccion_texto : '';
 
-  const recibo =
+  const reciboElegido =
     retiroModo === 'red'
-      ? descripcionRecibo({ modo: 'red', sucursal: retiroLugar })
+      ? ({ modo: 'red', sucursal: retiroLugar } as const)
       : retiroModo === 'colegio'
-        ? descripcionRecibo({ modo: 'colegio', localidad: retiroLugar })
+        ? ({ modo: 'colegio', localidad: retiroLugar, fecha: retiroFechaColegio || undefined } as const)
         : envioLocalidad
-          ? descripcionRecibo({ modo: 'envio', direccion: direccionTexto || envioLocalidad })
-          : 'retiro en farmacia';
+          ? ({ modo: 'envio', direccion: direccionTexto || envioLocalidad } as const)
+          : null;
+
+  const recibo = reciboElegido ? descripcionRecibo(reciboElegido) : 'retiro en farmacia';
+  const reciboMostradoTexto = reciboElegido ? reciboMostrado(reciboElegido) : 'retiro en farmacia';
 
   return {
     nombre: typeof m.nombre === 'string' ? m.nombre : '',
@@ -85,6 +90,7 @@ function resumenDesdePago(pago: PagoMP, cotizacionId: string): ResumenPago {
     tipo: m.tipo === 'cuotas' ? 'cuotas' : m.tipo === 'contado' ? 'contado' : '',
     celular: typeof m.celular === 'string' ? m.celular : '',
     recibo,
+    reciboMostrado: reciboMostradoTexto,
     retiroModo,
     retiroLugar,
   };

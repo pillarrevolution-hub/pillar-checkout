@@ -9,8 +9,9 @@ import {
   type PayloadCheckout,
 } from '@/lib/firma';
 import { buscarTarifa, tituloLocalidad } from '@/lib/envios';
-import { descripcionRecibo, mensajeConfirmacion } from '@/lib/mensajes';
+import { descripcionRecibo, mensajeConfirmacion, reciboMostrado, type ReciboElegido } from '@/lib/mensajes';
 import { FARMACIAS_RED } from '@/lib/farmaciasRed';
+import { proximoRepartoColegio, fechaRepartoTexto } from '@/lib/colegioFechas';
 import Home from './checkout/Home';
 import Paso1Recibir from './checkout/Paso1Recibir';
 import Paso2Datos from './checkout/Paso2Datos';
@@ -105,11 +106,13 @@ export default function Checkout({
   fuente,
   whatsapp,
   comprobanteRecibido = false,
+  hoy,
 }: {
   payload: PayloadCheckout;
   fuente: { c: string; t: string } | { p: string; t: string };
   whatsapp: string | null;
   comprobanteRecibido?: boolean;
+  hoy: string;
 }) {
   const [estado, dispatch] = useReducer(reducerPaso, ESTADO_INICIAL);
   const {
@@ -238,7 +241,20 @@ export default function Checkout({
     return [calle.trim(), piso.trim()].filter(Boolean).join(' ').concat(localidadDisplay ? `, ${localidadDisplay}` : '');
   }, [calle, piso, tarifaEncontrada, envioLocalidadTexto]);
 
-  const direccionParaGuardar = recibe === 'envio' ? direccionEnvioCompleta : '';
+  // Próximo reparto del Colegio de Farmacéuticos según el calendario CFC
+  // fijo — depende solo de la fecha de HOY (server), nunca de la
+  // localidad. `hoy` llega como prop desde el server (query ?hoy= fuera
+  // de producción, si no el reloj real) para que nunca dependa del reloj
+  // del navegador del paciente.
+  const repartoColegio = useMemo(() => proximoRepartoColegio(new Date(hoy)), [hoy]);
+  const fechaColegioTexto = repartoColegio ? fechaRepartoTexto(repartoColegio) : null;
+
+  const direccionParaGuardar =
+    recibe === 'envio'
+      ? direccionEnvioCompleta
+      : recibe === 'retiro' && retiroModo === 'colegio' && fechaColegioTexto
+        ? `Llega por Colegio: ${fechaColegioTexto}`
+        : '';
 
   // Guarda contacto/elección en Malvinas. Si falla, NO marca la clave como
   // guardada (para que el próximo Siguiente — o "Reintentar" — lo
@@ -384,6 +400,7 @@ export default function Checkout({
           tipo: pago === 'cuotas' ? 'cuotas' : 'contado',
           celular: celular.trim(),
           direccionTexto: recibe === 'envio' ? direccionCorta : '',
+          retiroFechaColegio: recibe === 'retiro' && retiroModo === 'colegio' ? (fechaColegioTexto ?? '') : '',
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -452,6 +469,17 @@ export default function Checkout({
         setFarmaciaRed={(v) => campo('farmaciaRed', v)}
         colegioLocalidad={colegioLocalidad}
         setColegioLocalidad={(v) => campo('colegioLocalidad', v)}
+        fechaColegioTexto={fechaColegioTexto}
+        onCambiarAEnvio={() => {
+          campo('recibe', 'envio');
+          campo('retiroModo', '');
+          irA(1);
+        }}
+        onCambiarARed={() => {
+          campo('recibe', 'retiro');
+          campo('retiroModo', 'red');
+          irA(1);
+        }}
         envioLocalidadTexto={envioLocalidadTexto}
         setEnvioLocalidadTexto={(v) => campo('envioLocalidadTexto', v)}
         calle={calle}
@@ -481,14 +509,19 @@ export default function Checkout({
 
   // Cómo lo recibe, en una frase — la misma base para el resumen del paso
   // 4 (antes de pagar) y para el mensaje de confirmación del paso 5.
-  const recibo =
+  // `reciboVisible` es solo para la caja "Recibís:" (Confirmación):
+  // camino Colegio usa "· llega el {fecha}" ahí, y "(Colegio, llega el
+  // {fecha})" en el resto (resumen del paso 4, mensaje de WhatsApp).
+  const reciboElegido: ReciboElegido | null =
     recibe === 'retiro' && retiroModo === 'red'
-      ? descripcionRecibo({ modo: 'red', sucursal: farmaciaRed })
+      ? { modo: 'red', sucursal: farmaciaRed }
       : recibe === 'retiro' && retiroModo === 'colegio'
-        ? descripcionRecibo({ modo: 'colegio', localidad: colegioLocalidad.trim() })
+        ? { modo: 'colegio', localidad: colegioLocalidad.trim(), fecha: fechaColegioTexto ?? undefined }
         : recibe === 'envio'
-          ? descripcionRecibo({ modo: 'envio', direccion: direccionCorta })
-          : '';
+          ? { modo: 'envio', direccion: direccionCorta }
+          : null;
+  const recibo = reciboElegido ? descripcionRecibo(reciboElegido) : '';
+  const reciboVisible = reciboElegido ? reciboMostrado(reciboElegido) : '';
 
   // Resumen corto de 2 líneas para el paso 4 con Mercado Pago: qué eligió
   // y a qué celular le avisamos, para que la pantalla tenga sentido antes
@@ -564,7 +597,7 @@ export default function Checkout({
       <Paso5Confirmacion
         nombre={payload.n}
         monto={t.contado}
-        recibo={recibo}
+        recibo={reciboVisible}
         celular={celular.trim()}
         mensajeWhatsApp={mensaje}
         whatsapp={whatsapp}
