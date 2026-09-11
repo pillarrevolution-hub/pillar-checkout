@@ -3,7 +3,7 @@ import { formatoPeso } from '@/lib/firma';
 import { buscarTarifa, sugerirTarifas, tituloLocalidad, type TarifaEnvio } from '@/lib/envios';
 import { FARMACIAS_RED } from '@/lib/farmaciasRed';
 import { PasoFooter, PasoHeader } from './ui';
-import { IconCheck, IconPin } from '../icons';
+import { IconCheck, IconClock, IconMail, IconPhone, IconPin } from '../icons';
 
 const celularOk = (v: string) => v.replace(/\D/g, '').length >= 6;
 
@@ -120,18 +120,56 @@ export default function Paso2Datos({
                 ))}
               </select>
             </div>
-            {farmaciaRed && (
-              <a
-                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                  FARMACIAS_RED.find((f) => f.nombre === farmaciaRed)?.mapsQuery ?? farmaciaRed
-                )}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="-mx-1 flex min-h-[44px] items-center gap-1.5 rounded-lg px-1 py-3 text-[15px] font-medium text-[#2f6fbd] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee7]"
-              >
-                <IconPin className="h-4 w-4" /> Ver esta sucursal en el mapa
-              </a>
-            )}
+            {farmaciaRed &&
+              (() => {
+                const suc = FARMACIAS_RED.find((f) => f.nombre === farmaciaRed);
+                if (!suc) return null;
+                return (
+                  <div className="rounded-[14px] bg-slate-50 p-4" aria-live="polite">
+                    <p className="text-[15px] text-[#475569]">
+                      Para consultar por tu pedido o saber si ya llegó:
+                    </p>
+                    <div className="mt-3 space-y-3">
+                      <div className="flex items-start gap-2.5">
+                        <IconPin className="mt-0.5 h-5 w-5 shrink-0 text-[#2f6fbd]" />
+                        <div>
+                          <p className="text-[16px] font-semibold text-tinta">{suc.direccion}</p>
+                          <a
+                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(suc.mapsQuery)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="-mx-1 -my-3 inline-block px-1 py-3 text-[15px] font-medium text-[#2f6fbd] underline"
+                          >
+                            Ver en el mapa
+                          </a>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2.5">
+                        <IconClock className="mt-0.5 h-5 w-5 shrink-0 text-[#2f6fbd]" />
+                        <p className="text-[16px] text-tinta">{suc.horario}</p>
+                      </div>
+                      <div className="flex items-start gap-2.5">
+                        <IconPhone className="mt-0.5 h-5 w-5 shrink-0 text-[#2f6fbd]" />
+                        <a
+                          href={`tel:${suc.telefonoE164}`}
+                          className="-mx-1 -my-3 inline-block px-1 py-3 text-[16px] font-medium text-[#2f6fbd] underline"
+                        >
+                          {suc.telefono}
+                        </a>
+                      </div>
+                      <div className="flex items-start gap-2.5">
+                        <IconMail className="mt-0.5 h-5 w-5 shrink-0 text-[#2f6fbd]" />
+                        <a
+                          href={`mailto:${suc.mail}`}
+                          className="-mx-1 -my-3 inline-block break-all px-1 py-3 text-[16px] font-medium text-[#2f6fbd] underline"
+                        >
+                          {suc.mail}
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             <p className="text-[15px] leading-relaxed text-[#475569]">
               Cuando esté listo te avisamos por WhatsApp y lo dejamos en esa farmacia a tu nombre.
             </p>

@@ -2,6 +2,7 @@ import { confirmarPagoDeRetorno } from '@/lib/aviso';
 import { linkWhatsApp, whatsappNumero } from '@/lib/datos';
 import { formatoPeso } from '@/lib/firma';
 import { mensajeConfirmacion } from '@/lib/mensajes';
+import { FARMACIAS_RED } from '@/lib/farmaciasRed';
 import { IconCheck } from '@/components/icons';
 
 export const dynamic = 'force-dynamic';
@@ -40,6 +41,10 @@ export default async function Gracias({
         })
       : null;
   const wsp = numero ? linkWhatsApp(numero, mensaje ?? '¡Hola! Ya hice el pago de mi tratamiento por Mercado Pago ✅') : null;
+  const farmaciaRedInfo =
+    resumen && resumen.retiroModo === 'red'
+      ? FARMACIAS_RED.find((f) => f.nombre === resumen.retiroLugar)
+      : undefined;
 
   if (pendiente) {
     return (
@@ -69,6 +74,14 @@ export default async function Gracias({
       {resumen && (
         <div className="mt-5 rounded-xl bg-[#f1f5fa] p-4 text-left text-[14px] tabular-nums leading-relaxed text-[#475569]">
           <p>Recibís: {resumen.recibo}</p>
+          {farmaciaRedInfo && (
+            <p className="text-[13px] text-[#64748b]">
+              {farmaciaRedInfo.direccion} · {farmaciaRedInfo.horario} ·{' '}
+              <a href={`tel:${farmaciaRedInfo.telefonoE164}`} className="underline">
+                {farmaciaRedInfo.telefono}
+              </a>
+            </p>
+          )}
           <p>
             Pagaste: {formatoPeso(resumen.monto)} por Mercado Pago
             {resumen.tipo === 'cuotas' ? ' (3 cuotas)' : ''}

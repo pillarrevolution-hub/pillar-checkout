@@ -10,6 +10,7 @@ import {
 } from '@/lib/firma';
 import { buscarTarifa, tituloLocalidad } from '@/lib/envios';
 import { descripcionRecibo, mensajeConfirmacion } from '@/lib/mensajes';
+import { FARMACIAS_RED } from '@/lib/farmaciasRed';
 import Home from './checkout/Home';
 import Paso1Recibir from './checkout/Paso1Recibir';
 import Paso2Datos from './checkout/Paso2Datos';
@@ -567,6 +568,11 @@ export default function Checkout({
         celular={celular.trim()}
         mensajeWhatsApp={mensaje}
         whatsapp={whatsapp}
+        farmaciaRedInfo={
+          recibe === 'retiro' && retiroModo === 'red'
+            ? FARMACIAS_RED.find((f) => f.nombre === farmaciaRed)
+            : undefined
+        }
       />
     );
   }

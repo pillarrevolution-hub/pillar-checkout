@@ -58,6 +58,8 @@ export type ResumenPago = {
   tipo: 'contado' | 'cuotas' | '';
   celular: string;
   recibo: string;
+  retiroModo: string;
+  retiroLugar: string;
 };
 
 function resumenDesdePago(pago: PagoMP, cotizacionId: string): ResumenPago {
@@ -83,6 +85,8 @@ function resumenDesdePago(pago: PagoMP, cotizacionId: string): ResumenPago {
     tipo: m.tipo === 'cuotas' ? 'cuotas' : m.tipo === 'contado' ? 'contado' : '',
     celular: typeof m.celular === 'string' ? m.celular : '',
     recibo,
+    retiroModo,
+    retiroLugar,
   };
 }
 

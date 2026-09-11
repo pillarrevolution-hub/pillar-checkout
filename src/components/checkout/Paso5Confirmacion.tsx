@@ -1,5 +1,6 @@
 import { linkWhatsApp } from '@/lib/datos';
 import { formatoPeso } from '@/lib/firma';
+import type { FarmaciaRed } from '@/lib/farmaciasRed';
 import { IconCheck } from '../icons';
 
 export default function Paso5Confirmacion({
@@ -9,6 +10,7 @@ export default function Paso5Confirmacion({
   celular,
   mensajeWhatsApp,
   whatsapp,
+  farmaciaRedInfo,
 }: {
   nombre: string;
   monto: number;
@@ -16,6 +18,7 @@ export default function Paso5Confirmacion({
   celular: string;
   mensajeWhatsApp: string;
   whatsapp: string | null;
+  farmaciaRedInfo?: FarmaciaRed;
 }) {
   return (
     <div className="tarjeta fade-paso text-center">
@@ -31,6 +34,14 @@ export default function Paso5Confirmacion({
 
       <div className="mt-5 rounded-xl bg-[#f1f5fa] p-4 text-left text-[14px] tabular-nums leading-relaxed text-[#475569]">
         <p>Recibís: {recibo}</p>
+        {farmaciaRedInfo && (
+          <p className="text-[13px] text-[#64748b]">
+            {farmaciaRedInfo.direccion} · {farmaciaRedInfo.horario} ·{' '}
+            <a href={`tel:${farmaciaRedInfo.telefonoE164}`} className="underline">
+              {farmaciaRedInfo.telefono}
+            </a>
+          </p>
+        )}
         <p>Pagaste: {formatoPeso(monto)} por transferencia</p>
         {celular && <p>Te avisamos al: {celular}</p>}
       </div>
