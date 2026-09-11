@@ -88,6 +88,18 @@ export function sugerirLocalidades(texto: string, localidades: readonly string[]
   return [...empiezan, ...contienen].slice(0, Math.max(0, max));
 }
 
+// Si lo que escribió el paciente deja UNA sola localidad candidata (sin
+// ser todavía el nombre oficial exacto), la devuelve para auto-aceptarla
+// — mismo criterio que el match exacto, pero para el caso de una
+// sugerencia difusa sin ambigüedad (p. ej. "Rio Cuarto" sin tilde). Si hay
+// 0 candidatas (nada que sugerir) o 2+ (ambiguo), null: ahí el paciente
+// tiene que elegir de la lista.
+export function matchUnicoDifuso(texto: string, localidades: readonly string[]): string | null {
+  if (normalizarLocalidad(texto).length < 3) return null;
+  const sugeridas = sugerirLocalidades(texto, localidades, 6);
+  return sugeridas.length === 1 ? sugeridas[0] : null;
+}
+
 // Título prolijo para mostrar ("ALTA GRACIA" → "Alta Gracia"); el valor
 // que viaja a Malvinas sigue siendo el original en MAYÚSCULAS.
 export function tituloLocalidad(s: string): string {

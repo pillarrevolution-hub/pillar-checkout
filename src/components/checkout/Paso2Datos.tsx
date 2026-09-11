@@ -1,8 +1,10 @@
+import { useMemo } from 'react';
 import { linkWhatsApp } from '@/lib/datos';
 import { formatoPeso } from '@/lib/firma';
 import {
   buscarTarifa,
   matchExactoLocalidad,
+  matchUnicoDifuso,
   sugerirLocalidades,
   sugerirTarifas,
   tituloLocalidad,
@@ -83,8 +85,14 @@ export default function Paso2Datos({
   onSiguiente: () => void;
   onVolver: () => void;
 }) {
-  const tarifaEncontrada = recibe === 'envio' ? buscarTarifa(envioLocalidadTexto, tarifas) : null;
-  const sugerencias = recibe === 'envio' ? sugerirTarifas(envioLocalidadTexto, tarifas, 6) : [];
+  const tarifaEncontrada = useMemo(
+    () => (recibe === 'envio' ? buscarTarifa(envioLocalidadTexto, tarifas) : null),
+    [recibe, envioLocalidadTexto, tarifas]
+  );
+  const sugerencias = useMemo(
+    () => (recibe === 'envio' ? sugerirTarifas(envioLocalidadTexto, tarifas, 6) : []),
+    [recibe, envioLocalidadTexto, tarifas]
+  );
   const noEncontrada = recibe === 'envio' && envioLocalidadTexto.trim().length >= 3 && !tarifaEncontrada;
 
   // Localidad del Colegio restringida a Córdoba (pedido de Tomi): si
@@ -94,13 +102,26 @@ export default function Paso2Datos({
   if (colegioSinListaDeLocalidades && retiroModo === 'colegio') {
     console.warn('Paso2Datos: localidades vacío — Colegio queda con localidad libre, sin restricción');
   }
-  const colegioLocalidadOficial = colegioSinListaDeLocalidades ? null : matchExactoLocalidad(colegioLocalidad, localidades);
-  const sugerenciasColegio = colegioSinListaDeLocalidades ? [] : sugerirLocalidades(colegioLocalidad, localidades, 6);
+  const colegioLocalidadOficial = useMemo(
+    () => (colegioSinListaDeLocalidades ? null : matchExactoLocalidad(colegioLocalidad, localidades)),
+    [colegioSinListaDeLocalidades, colegioLocalidad, localidades]
+  );
+  const sugerenciasColegio = useMemo(
+    () => (colegioSinListaDeLocalidades ? [] : sugerirLocalidades(colegioLocalidad, localidades, 6)),
+    [colegioSinListaDeLocalidades, colegioLocalidad, localidades]
+  );
+  // Bloqueada: hay texto (≥3 caracteres) y ninguna localidad oficial lo
+  // confirma — el onChange de abajo ya auto-acepta el único caso
+  // ambiguo resoluble (una sola sugerencia difusa), así que acá solo
+  // queda el caso real de "no hay o hay demasiadas".
   const colegioLocalidadBloqueada =
-    !colegioSinListaDeLocalidades &&
-    colegioLocalidad.trim().length >= 3 &&
-    !colegioLocalidadOficial &&
-    sugerenciasColegio.length !== 1;
+    !colegioSinListaDeLocalidades && colegioLocalidad.trim().length >= 3 && !colegioLocalidadOficial;
+  // La caja de fecha SOLO se muestra con una localidad confirmada (match
+  // oficial) — nunca a mitad de tecleo, ni vacía (v3.1.1: antes se
+  // mostraba por default apenas se entraba a este paso).
+  const colegioLocalidadConfirmada = colegioSinListaDeLocalidades
+    ? colegioLocalidad.trim().length >= 2
+    : !!colegioLocalidadOficial;
 
   let puedeAvanzar = false;
   let falta = '';
@@ -108,9 +129,8 @@ export default function Paso2Datos({
     puedeAvanzar = !!farmaciaRed && celularOk(celular);
     falta = !farmaciaRed ? 'Elegí en qué Farmacia RED lo retirás' : 'Falta tu celular';
   } else if (recibe === 'retiro' && retiroModo === 'colegio') {
-    const localidadOk = colegioSinListaDeLocalidades ? colegioLocalidad.trim().length >= 2 : !!colegioLocalidadOficial;
-    puedeAvanzar = localidadOk && celularOk(celular);
-    falta = !localidadOk ? 'Elegí una localidad de la lista' : 'Falta tu celular';
+    puedeAvanzar = colegioLocalidadConfirmada && celularOk(celular);
+    falta = !colegioLocalidadConfirmada ? 'Elegí una localidad de la lista' : 'Falta tu celular';
   } else if (recibe === 'envio') {
     puedeAvanzar = !!tarifaEncontrada && calle.trim().length >= 4 && celularOk(celular) && !noEncontrada;
     falta = !envioLocalidadTexto.trim()
@@ -167,7 +187,8 @@ export default function Paso2Datos({
                             href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(suc.mapsQuery)}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="-mx-1 -my-3 inline-block px-1 py-3 text-[15px] font-medium text-[#2f6fbd] underline"
+                            aria-label="Ver en el mapa (se abre en otra pestaña)"
+                            className="link-tap text-[15px] font-medium text-[#2f6fbd] underline"
                           >
                             Ver en el mapa
                           </a>
@@ -181,7 +202,7 @@ export default function Paso2Datos({
                         <IconPhone className="mt-0.5 h-5 w-5 shrink-0 text-[#2f6fbd]" />
                         <a
                           href={`tel:${suc.telefonoE164}`}
-                          className="-mx-1 -my-3 inline-block px-1 py-3 text-[16px] font-medium text-[#2f6fbd] underline"
+                          className="link-tap text-[16px] font-medium text-[#2f6fbd] underline"
                         >
                           {suc.telefono}
                         </a>
@@ -190,7 +211,7 @@ export default function Paso2Datos({
                         <IconMail className="mt-0.5 h-5 w-5 shrink-0 text-[#2f6fbd]" />
                         <a
                           href={`mailto:${suc.mail}`}
-                          className="-mx-1 -my-3 inline-block break-all px-1 py-3 text-[16px] font-medium text-[#2f6fbd] underline"
+                          className="link-tap break-all text-[16px] font-medium text-[#2f6fbd] underline"
                         >
                           {suc.mail}
                         </a>
@@ -225,7 +246,11 @@ export default function Paso2Datos({
                   value={colegioLocalidad}
                   onChange={(e) => {
                     const raw = e.target.value;
-                    const oficial = colegioSinListaDeLocalidades ? null : matchExactoLocalidad(raw, localidades);
+                    if (colegioSinListaDeLocalidades) {
+                      setColegioLocalidad(raw);
+                      return;
+                    }
+                    const oficial = matchExactoLocalidad(raw, localidades) ?? matchUnicoDifuso(raw, localidades);
                     setColegioLocalidad(oficial ?? raw);
                   }}
                   onBlur={onBlurGuardar}
@@ -259,13 +284,13 @@ export default function Paso2Datos({
                 </p>
                 <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                   <button
-                    className="flex-1 rounded-xl border border-amber-300 bg-white px-4 py-2.5 text-[14px] font-bold text-amber-900 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee7]"
+                    className="min-h-[44px] flex-1 rounded-xl border border-amber-300 bg-white px-4 py-2.5 text-[14px] font-bold text-amber-900 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee7]"
                     onClick={onCambiarAEnvio}
                   >
                     Envío a domicilio
                   </button>
                   <button
-                    className="flex-1 rounded-xl border border-amber-300 bg-white px-4 py-2.5 text-[14px] font-bold text-amber-900 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee7]"
+                    className="min-h-[44px] flex-1 rounded-xl border border-amber-300 bg-white px-4 py-2.5 text-[14px] font-bold text-amber-900 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee7]"
                     onClick={onCambiarARed}
                   >
                     Retirar en Farmacia RED
@@ -273,22 +298,24 @@ export default function Paso2Datos({
                 </div>
               </div>
             ) : (
-              <div className="rounded-[14px] bg-slate-50 p-4" aria-live="polite">
-                <div className="flex items-start gap-2.5">
-                  <IconCalendar className="mt-0.5 h-5 w-5 shrink-0 text-[#2f6fbd]" />
-                  <div>
-                    <p className="text-[18px] font-bold text-tinta">
-                      {fechaColegioTexto
-                        ? `Tu pedido llega a la farmacia de tu localidad el ${fechaColegioTexto}.`
-                        : 'Te confirmamos por WhatsApp el día que llega a tu localidad.'}
-                    </p>
-                    <p className="mt-1 text-[15px] text-[#475569]">
-                      Lo lleva el Colegio de Farmacéuticos con su reparto quincenal. Ese día te
-                      avisamos por WhatsApp en qué farmacia retirarlo.
-                    </p>
+              colegioLocalidadConfirmada && (
+                <div className="rounded-[14px] bg-slate-50 p-4" aria-live="polite">
+                  <div className="flex items-start gap-2.5">
+                    <IconCalendar className="mt-0.5 h-5 w-5 shrink-0 text-[#2f6fbd]" />
+                    <div>
+                      <p className="text-[18px] font-bold text-tinta">
+                        {fechaColegioTexto
+                          ? `Tu pedido llega a una farmacia de tu localidad el ${fechaColegioTexto}.`
+                          : 'Te confirmamos por WhatsApp el día que llega a tu localidad.'}
+                      </p>
+                      <p className="mt-1 text-[15px] text-[#475569]">
+                        Lo lleva el Colegio de Farmacéuticos con su reparto quincenal. Ese día te
+                        avisamos por WhatsApp en qué farmacia retirarlo.
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )
             )}
 
             <Celular celular={celular} setCelular={setCelular} onBlur={onBlurGuardar} />
@@ -362,7 +389,7 @@ export default function Paso2Datos({
                 </p>
                 <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                   <button
-                    className="flex-1 rounded-xl border border-amber-300 bg-white px-4 py-2.5 text-[14px] font-bold text-amber-900 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee7]"
+                    className="min-h-[44px] flex-1 rounded-xl border border-amber-300 bg-white px-4 py-2.5 text-[14px] font-bold text-amber-900 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee7]"
                     onClick={onIrARetiro}
                   >
                     Retirar en farmacia
@@ -375,7 +402,7 @@ export default function Paso2Datos({
                       )}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex-1 rounded-xl border border-amber-300 bg-white px-4 py-2.5 text-center text-[14px] font-bold text-amber-900 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee7]"
+                      className="flex min-h-[44px] flex-1 items-center justify-center rounded-xl border border-amber-300 bg-white px-4 py-2.5 text-center text-[14px] font-bold text-amber-900 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee7]"
                     >
                       Consultar por WhatsApp
                     </a>

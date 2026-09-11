@@ -11,6 +11,7 @@ export default function Paso5Confirmacion({
   mensajeWhatsApp,
   whatsapp,
   farmaciaRedInfo,
+  colegioInfo,
 }: {
   nombre: string;
   monto: number;
@@ -19,6 +20,7 @@ export default function Paso5Confirmacion({
   mensajeWhatsApp: string;
   whatsapp: string | null;
   farmaciaRedInfo?: FarmaciaRed;
+  colegioInfo?: { localidad: string; o: number; nombre: string };
 }) {
   return (
     <div className="tarjeta fade-paso text-center">
@@ -32,14 +34,38 @@ export default function Paso5Confirmacion({
         tratamiento.
       </p>
 
-      <div className="mt-5 rounded-xl bg-[#f1f5fa] p-4 text-left text-[14px] tabular-nums leading-relaxed text-[#475569]">
+      <div className="mt-5 rounded-xl bg-slate-50 p-4 text-left text-[14px] tabular-nums leading-relaxed text-[#475569]">
         <p>Recibís: {recibo}</p>
         {farmaciaRedInfo && (
-          <p className="text-[13px] text-[#64748b]">
+          <p className="text-[13px] text-[#475569]">
             {farmaciaRedInfo.direccion} · {farmaciaRedInfo.horario} ·{' '}
-            <a href={`tel:${farmaciaRedInfo.telefonoE164}`} className="underline">
+            <a href={`tel:${farmaciaRedInfo.telefonoE164}`} className="link-tap underline">
               {farmaciaRedInfo.telefono}
             </a>
+          </p>
+        )}
+        {colegioInfo && (
+          <p className="text-[13px] text-[#475569]">
+            Colegio de Farmacéuticos · Ese día te avisamos por WhatsApp en qué farmacia de{' '}
+            {colegioInfo.localidad} retirarlo.
+            {whatsapp && (
+              <>
+                {' '}
+                Si no te llega el aviso,{' '}
+                <a
+                  href={linkWhatsApp(
+                    whatsapp,
+                    `Hola! Soy ${colegioInfo.nombre}, cotización #${colegioInfo.o}. No me llegó el aviso de en qué farmacia de ${colegioInfo.localidad} retiro mi tratamiento (Colegio de Farmacéuticos).`
+                  )}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="link-tap underline"
+                >
+                  escribinos
+                </a>
+                .
+              </>
+            )}
           </p>
         )}
         <p>Pagaste: {formatoPeso(monto)} por transferencia</p>

@@ -147,6 +147,12 @@ export default function Checkout({
   const [cargandoMP, setCargandoMP] = useState(false);
   const [errorMP, setErrorMP] = useState('');
   const [errorContacto, setErrorContacto] = useState(false);
+  // Aviso no persistente (no va al draft de sessionStorage): cuando un
+  // botón de escape del paso 2 (Colegio bloqueado) manda de vuelta al
+  // paso 1 con una opción ya preseleccionada, esto evita que el cambio
+  // pase en silencio — se limpia apenas el paciente vuelve a tocar una
+  // opción a mano.
+  const [avisoCambioRecibe, setAvisoCambioRecibe] = useState<'' | 'envio' | 'red'>('');
 
   const ultimoContacto = useRef('');
 
@@ -441,8 +447,15 @@ export default function Checkout({
         whatsapp={whatsapp}
         errorContacto={errorContacto}
         onReintentarContacto={guardarContacto}
-        onElegirRecibe={(r) => campo('recibe', r)}
-        onElegirRetiroModo={(m) => campo('retiroModo', m)}
+        avisoCambio={avisoCambioRecibe}
+        onElegirRecibe={(r) => {
+          setAvisoCambioRecibe('');
+          campo('recibe', r);
+        }}
+        onElegirRetiroModo={(m) => {
+          setAvisoCambioRecibe('');
+          campo('retiroModo', m);
+        }}
         onSiguiente={() => {
           guardarContacto();
           irA(2);
@@ -473,11 +486,13 @@ export default function Checkout({
         onCambiarAEnvio={() => {
           campo('recibe', 'envio');
           campo('retiroModo', '');
+          setAvisoCambioRecibe('envio');
           irA(1);
         }}
         onCambiarARed={() => {
           campo('recibe', 'retiro');
           campo('retiroModo', 'red');
+          setAvisoCambioRecibe('red');
           irA(1);
         }}
         envioLocalidadTexto={envioLocalidadTexto}
@@ -604,6 +619,11 @@ export default function Checkout({
         farmaciaRedInfo={
           recibe === 'retiro' && retiroModo === 'red'
             ? FARMACIAS_RED.find((f) => f.nombre === farmaciaRed)
+            : undefined
+        }
+        colegioInfo={
+          recibe === 'retiro' && retiroModo === 'colegio'
+            ? { localidad: colegioLocalidad.trim(), o: payload.o, nombre: payload.n }
             : undefined
         }
       />
