@@ -69,6 +69,19 @@ export default function Home({
         Pagar mi tratamiento
       </button>
       <p className="mt-2 text-center text-[13px] text-[#475569]">Te lleva 2 minutos.</p>
+      <p className="mt-2 text-center text-[14px] text-[#475569]">
+        Al continuar aceptás los{' '}
+        <a
+          href="https://pill.ar/es/terminos-y-condiciones"
+          target="_blank"
+          rel="noopener"
+          aria-label="Términos y Condiciones (se abre en otra pestaña)"
+          className="rounded text-[#2f6fbd] underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee7]"
+        >
+          Términos y Condiciones
+        </a>
+        .
+      </p>
 
       {whatsapp && (
         <a

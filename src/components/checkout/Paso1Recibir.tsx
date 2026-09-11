@@ -9,6 +9,7 @@ export default function Paso1Recibir({
   whatsapp,
   errorContacto,
   onReintentarContacto,
+  avisoCambio,
   onElegirRecibe,
   onElegirRetiroModo,
   onSiguiente,
@@ -21,6 +22,7 @@ export default function Paso1Recibir({
   whatsapp: string | null;
   errorContacto?: boolean;
   onReintentarContacto?: () => void;
+  avisoCambio?: '' | 'envio' | 'red';
   onElegirRecibe: (r: 'retiro' | 'envio') => void;
   onElegirRetiroModo: (m: 'red' | 'colegio') => void;
   onSiguiente: () => void;
@@ -136,6 +138,13 @@ export default function Paso1Recibir({
           </div>
         )}
       </div>
+
+      {avisoCambio && (
+        <p className="mt-3 text-[15px] font-medium text-[#2f6fbd]" aria-live="polite">
+          {avisoCambio === 'envio' ? 'Cambiaste a envío a domicilio.' : 'Cambiaste a retiro en Farmacia RED.'}{' '}
+          Tocá Siguiente para seguir.
+        </p>
+      )}
 
       <PasoFooter
         onSiguiente={onSiguiente}

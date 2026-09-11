@@ -2,6 +2,7 @@ import { confirmarPagoDeRetorno } from '@/lib/aviso';
 import { linkWhatsApp, whatsappNumero } from '@/lib/datos';
 import { formatoPeso } from '@/lib/firma';
 import { mensajeConfirmacion } from '@/lib/mensajes';
+import { FARMACIAS_RED } from '@/lib/farmaciasRed';
 import { IconCheck } from '@/components/icons';
 
 export const dynamic = 'force-dynamic';
@@ -40,6 +41,14 @@ export default async function Gracias({
         })
       : null;
   const wsp = numero ? linkWhatsApp(numero, mensaje ?? '¡Hola! Ya hice el pago de mi tratamiento por Mercado Pago ✅') : null;
+  const farmaciaRedInfo =
+    resumen && resumen.retiroModo === 'red'
+      ? FARMACIAS_RED.find((f) => f.nombre === resumen.retiroLugar)
+      : undefined;
+  const colegioInfo =
+    resumen && resumen.retiroModo === 'colegio' && resumen.retiroLugar
+      ? { localidad: resumen.retiroLugar, o: resumen.o, nombre: resumen.nombre || 'paciente' }
+      : undefined;
 
   if (pendiente) {
     return (
@@ -67,8 +76,40 @@ export default async function Gracias({
       </p>
 
       {resumen && (
-        <div className="mt-5 rounded-xl bg-[#f1f5fa] p-4 text-left text-[14px] tabular-nums leading-relaxed text-[#475569]">
-          <p>Recibís: {resumen.recibo}</p>
+        <div className="mt-5 rounded-xl bg-slate-50 p-4 text-left text-[14px] tabular-nums leading-relaxed text-[#475569]">
+          <p>Recibís: {resumen.reciboMostrado}</p>
+          {farmaciaRedInfo && (
+            <p className="text-[13px] text-[#475569]">
+              {farmaciaRedInfo.direccion} · {farmaciaRedInfo.horario} ·{' '}
+              <a href={`tel:${farmaciaRedInfo.telefonoE164}`} className="link-tap underline">
+                {farmaciaRedInfo.telefono}
+              </a>
+            </p>
+          )}
+          {colegioInfo && (
+            <p className="text-[13px] text-[#475569]">
+              Colegio de Farmacéuticos · Ese día te avisamos por WhatsApp en qué farmacia de{' '}
+              {colegioInfo.localidad} retirarlo.
+              {numero && (
+                <>
+                  {' '}
+                  Si no te llega el aviso,{' '}
+                  <a
+                    href={linkWhatsApp(
+                      numero,
+                      `Hola! Soy ${colegioInfo.nombre}, cotización #${colegioInfo.o}. No me llegó el aviso de en qué farmacia de ${colegioInfo.localidad} retiro mi tratamiento (Colegio de Farmacéuticos).`
+                    )}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="link-tap underline"
+                  >
+                    escribinos
+                  </a>
+                  .
+                </>
+              )}
+            </p>
+          )}
           <p>
             Pagaste: {formatoPeso(resumen.monto)} por Mercado Pago
             {resumen.tipo === 'cuotas' ? ' (3 cuotas)' : ''}

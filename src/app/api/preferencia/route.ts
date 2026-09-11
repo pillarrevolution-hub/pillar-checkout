@@ -30,6 +30,7 @@ export async function POST(req: NextRequest) {
   const tipo: 'contado' | 'cuotas' = body?.tipo === 'cuotas' ? 'cuotas' : 'contado';
   const celular = typeof body?.celular === 'string' ? body.celular.trim().slice(0, 60) : '';
   const direccionTexto = typeof body?.direccionTexto === 'string' ? body.direccionTexto.trim().slice(0, 200) : '';
+  const retiroFechaColegio = typeof body?.retiroFechaColegio === 'string' ? body.retiroFechaColegio.trim().slice(0, 80) : '';
 
   let eleccion: EleccionEnvio;
   let envioLocalidadCanonica = '';
@@ -62,6 +63,7 @@ export async function POST(req: NextRequest) {
         nombre: payload.n,
         retiro_modo: retiroModo,
         retiro_lugar: retiroLugar,
+        retiro_fecha_colegio: retiroFechaColegio,
         envio_localidad: envioLocalidadCanonica,
         envio_monto: envioMonto,
         direccion_texto: direccionTexto,

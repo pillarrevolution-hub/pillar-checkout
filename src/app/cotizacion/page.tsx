@@ -1,13 +1,15 @@
 import { verificarLink } from '@/lib/firma';
 import { whatsappNumero } from '@/lib/datos';
+import { resolverHoy } from '@/lib/colegioFechas';
 import Checkout from '@/components/Checkout';
 
 export const dynamic = 'force-dynamic';
 
 // Formato VIEJO del link (payload firmado en la URL): sigue andando para
 // los links ya mandados. Los nuevos usan el link corto /c/{id}/{firma}.
-export default function Cotizacion({ searchParams }: { searchParams: { p?: string; t?: string } }) {
+export default function Cotizacion({ searchParams }: { searchParams: { p?: string; t?: string; hoy?: string } }) {
   const payload = verificarLink(searchParams.p, searchParams.t);
+  const hoy = resolverHoy(searchParams.hoy);
 
   if (!payload) {
     return (
@@ -27,6 +29,7 @@ export default function Cotizacion({ searchParams }: { searchParams: { p?: strin
       payload={payload}
       fuente={{ p: searchParams.p!, t: searchParams.t! }}
       whatsapp={whatsappNumero()}
+      hoy={hoy.toISOString()}
     />
   );
 }

@@ -42,7 +42,12 @@
   @apply block text-center text-[15px] font-medium text-[#2f6fbd] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee7];
 }
 .aviso-error {
-  @apply rounded-xl bg-amber-50 p-3.5 text-[16px] font-medium leading-relaxed text-amber-800;
+  @apply rounded-xl bg-amber-50 p-3.5 text-[16px] font-medium leading-relaxed text-amber-900;
+}
+/* Amplía el área táctil de un link en línea (tel:/mailto:/mapa) a ≥44px
+   sin mover el layout visual — mismo truco en todos los links de contacto. */
+.link-tap {
+  @apply -mx-1 -my-3 inline-block rounded px-1 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee7];
 }
 .fade-paso {
   animation: fadePaso 150ms ease;
