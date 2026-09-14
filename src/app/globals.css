@@ -49,8 +49,10 @@
 .link-tap {
   @apply -mx-1 -my-3 inline-block rounded px-1 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee7];
 }
-.fade-paso {
-  animation: fadePaso 150ms ease;
+@media (prefers-reduced-motion: no-preference) {
+  .fade-paso {
+    animation: fadePaso 150ms ease;
+  }
 }
 @keyframes fadePaso {
   from {

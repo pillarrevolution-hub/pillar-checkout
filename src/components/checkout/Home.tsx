@@ -21,7 +21,7 @@ export default function Home({
   onEmpezar: () => void;
 }) {
   return (
-    <div className="tarjeta">
+    <>
       <span className="chip">Cotización personalizada</span>
       <h1 className="mt-3 font-sans text-[32px] font-bold leading-tight text-tinta">Hola, {nombre}.</h1>
       <p className="mt-2 text-[15px] text-slate-500">
@@ -93,6 +93,6 @@ export default function Home({
           ¿Tenés dudas antes de pagar? Escribinos por WhatsApp
         </a>
       )}
-    </div>
+    </>
   );
 }

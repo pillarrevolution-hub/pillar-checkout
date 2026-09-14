@@ -185,7 +185,12 @@ export default function Checkout({
   useLayoutEffect(() => {
     const draft = cargarDraft(payload.o);
     if (draft) dispatch({ type: 'restaurar', estado: draft });
-    window.history.replaceState({ paso: draft?.paso ?? 0 }, '');
+    // Se preserva el resto de history.state (Next.js guarda ahí sus
+    // propios internals de router, __NA entre otros) y solo se pisa la
+    // clave `paso`: reemplazar el objeto entero deja a Next sin sus datos
+    // y su handler de popstate, al no encontrarlos, fuerza una recarga
+    // completa en vez de solo re-renderizar — eso era el "parpadeo".
+    window.history.replaceState({ ...window.history.state, paso: draft?.paso ?? 0 }, '');
     setListo(true);
     function onPop(e: PopStateEvent) {
       const p = (e.state as { paso?: number } | null)?.paso;
@@ -198,7 +203,7 @@ export default function Checkout({
 
   function irA(n: Paso) {
     dispatch({ type: 'paso', paso: n });
-    window.history.pushState({ paso: n }, '');
+    window.history.pushState({ ...window.history.state, paso: n }, '');
   }
   const volver = () => window.history.back();
 
@@ -422,8 +427,16 @@ export default function Checkout({
     return <div className="tarjeta" style={{ minHeight: 520, background: '#edf2f8' }} />;
   }
 
+  // Shell único (tarjeta blanca + piso de alto) para las 6 pantallas del
+  // wizard: antes cada PasoN traía su propio wrapper .tarjeta, con
+  // min-height inconsistente (Paso1/2/3 lo fijaban, Home/Paso4/Paso5 no)
+  // — eso hacía saltar el alto de la tarjeta en cada transición. Ahora
+  // cada PasoN devuelve solo su contenido y el alto se fija acá, una
+  // sola vez, parejo para los 6.
+  let contenido: React.ReactNode = null;
+
   if (paso === 0) {
-    return (
+    contenido = (
       <Home
         nombre={payload.n}
         li={li}
@@ -435,10 +448,8 @@ export default function Checkout({
         onEmpezar={() => irA(1)}
       />
     );
-  }
-
-  if (paso === 1) {
-    return (
+  } else if (paso === 1) {
+    contenido = (
       <Paso1Recibir
         cotizacion={payload.o}
         hayEnvios={!!payload.envios}
@@ -463,10 +474,8 @@ export default function Checkout({
         onVolver={volver}
       />
     );
-  }
-
-  if (paso === 2 && recibe) {
-    return (
+  } else if (paso === 2 && recibe) {
+    contenido = (
       <Paso2Datos
         cotizacion={payload.o}
         recibe={recibe}
@@ -562,7 +571,7 @@ export default function Checkout({
         : payload.envioAdentro
           ? 'Tratamiento (envío incluido en el precio)'
           : `Tratamiento + envío a ${tarifaEncontrada ? tituloLocalidad(tarifaEncontrada.l) : ''}`;
-    return (
+    contenido = (
       <Paso3Pago
         cotizacion={payload.o}
         barraTexto={barraTexto}
@@ -581,7 +590,7 @@ export default function Checkout({
   }
 
   if (paso === 4) {
-    return (
+    contenido = (
       <Paso4Pagar
         cotizacion={payload.o}
         pago={pago}
@@ -608,7 +617,7 @@ export default function Checkout({
       recibo,
       celular: celular.trim() || 's/d',
     });
-    return (
+    contenido = (
       <Paso5Confirmacion
         nombre={payload.n}
         monto={t.contado}
@@ -630,5 +639,9 @@ export default function Checkout({
     );
   }
 
-  return null;
+  return (
+    <div className={`tarjeta fade-paso flex min-h-[520px] flex-col${paso === 5 ? ' text-center' : ''}`}>
+      {contenido}
+    </div>
+  );
 }

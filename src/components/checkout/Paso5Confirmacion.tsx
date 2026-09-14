@@ -23,7 +23,7 @@ export default function Paso5Confirmacion({
   colegioInfo?: { localidad: string; o: number; nombre: string };
 }) {
   return (
-    <div className="tarjeta fade-paso text-center">
+    <>
       <div className="mb-3 flex justify-center">
         <IconCheck className="h-12 w-12" />
       </div>
@@ -80,6 +80,6 @@ export default function Paso5Confirmacion({
       <p className="mt-4 text-[13px] text-[#475569]">
         Podés cerrar esta página. Guardá el link por si querés volver a verla.
       </p>
-    </div>
+    </>
   );
 }

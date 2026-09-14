@@ -143,7 +143,7 @@ export default function Paso2Datos({
   }
 
   return (
-    <div className="tarjeta fade-paso flex min-h-[520px] flex-col">
+    <>
       <PasoHeader paso={2} />
 
       {recibe === 'retiro' && retiroModo === 'red' && (
@@ -480,7 +480,7 @@ export default function Paso2Datos({
         errorContacto={errorContacto}
         onReintentarContacto={onReintentarContacto}
       />
-    </div>
+    </>
   );
 }
 
