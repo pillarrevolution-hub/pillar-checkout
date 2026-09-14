@@ -9,7 +9,8 @@
     "test:colegio": "node --test src/lib/__tests__/colegioFechas.test.ts",
     "test:envios": "node --test src/lib/__tests__/envios.test.ts",
     "test:direcciones": "node --test src/lib/__tests__/direcciones.test.ts src/lib/__tests__/direccionesApi.test.ts",
-    "test:no-reload": "playwright test"
+    "test:no-reload": "playwright test",
+    "test:direccion-estable": "playwright test tests/direccion-estable.spec.ts"
   },
   "dependencies": {
     "next": "^14.2.15",
