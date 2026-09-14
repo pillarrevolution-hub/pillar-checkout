@@ -18,7 +18,7 @@
   @apply flex min-h-[56px] w-full items-center rounded-xl border-2 p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee7];
 }
 .label-paso {
-  @apply mb-1.5 block text-[13px] font-bold text-tinta;
+  @apply mb-1.5 block text-[15px] font-bold text-tinta;
 }
 .radio {
   @apply mt-0.5 h-[18px] w-[18px] shrink-0 rounded-full border-2;

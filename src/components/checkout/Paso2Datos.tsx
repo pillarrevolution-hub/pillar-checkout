@@ -290,7 +290,7 @@ export default function Paso2Datos({
             </div>
 
             {colegioLocalidadBloqueada ? (
-              <div className="rounded-xl bg-amber-50 p-4 text-[15px] leading-relaxed text-amber-900" aria-live="polite">
+              <div className="rounded-xl bg-amber-50 p-4 text-[18px] leading-relaxed text-amber-900" aria-live="polite">
                 <p className="font-bold">Por el Colegio solo llegamos a localidades de Córdoba.</p>
                 <p className="mt-1">
                   Si «{colegioLocalidad.trim()}» está en Córdoba, fijate cómo figura en la lista; si
@@ -414,7 +414,7 @@ export default function Paso2Datos({
             )}
 
             {noEncontrada && (
-              <div className="rounded-xl bg-amber-50 p-4 text-[15px] leading-relaxed text-amber-900" aria-live="polite">
+              <div className="rounded-xl bg-amber-50 p-4 text-[18px] leading-relaxed text-amber-900" aria-live="polite">
                 <p className="font-bold">
                   Todavía no llegamos a «{envioLocalidadTexto.trim()}» con envío a domicilio.
                 </p>

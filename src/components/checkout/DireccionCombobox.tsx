@@ -92,6 +92,19 @@ export default function DireccionCombobox({
   // Guarda el detalle de Google cuando la localidad no coincide, para
   // que "Usar {localidadGoogle}" no tenga que pedirlo de nuevo.
   const pendienteRef = useRef<DetalleGoogle | null>(null);
+  // Se prende al elegir una sugerencia (clic/teclado o auto-aceptada al
+  // salir) y se apaga recién cuando el paciente vuelve a tocar el campo.
+  // Sin esto, clickear "Usar {localidad}" o "Corregir la dirección" —
+  // botones FUERA del input, sin el mismo onMouseDown+preventDefault que
+  // tiene la lista de sugerencias — le hace perder el foco al input
+  // ANTES de que corra el handler del botón; direccionVerificada todavía
+  // está en false en el caso de localidad distinta, así que alSalirDelCampo
+  // cree que el campo quedó "sin tocar" y dispara su propia
+  // re-verificación por su cuenta, que corre en paralelo y (por tardar
+  // dos fetches de red) puede resolver DESPUÉS y pisar la selección que
+  // el paciente ya había confirmado. Ref, no state, por el mismo motivo
+  // que degradadoRef: se lee dentro de un async después de un await.
+  const seleccionadaRef = useRef(false);
 
   // Si el domicilio se vació desde afuera (cambio de localidad, C2), se
   // limpia también todo el estado visual del combobox.
@@ -102,6 +115,7 @@ export default function DireccionCombobox({
       setAbierto(false);
       setIndiceActivo(-1);
       pendienteRef.current = null;
+      seleccionadaRef.current = false;
     }
   }, [calle]);
 
@@ -151,6 +165,7 @@ export default function DireccionCombobox({
     setDireccionConfirmadaTexto('');
     setAvisoLocalidad(null);
     pendienteRef.current = null;
+    seleccionadaRef.current = false;
 
     if (degradadoRef.current || !habilitado) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -221,6 +236,7 @@ export default function DireccionCombobox({
   }
 
   async function elegirSugerencia(s: Sugerencia) {
+    seleccionadaRef.current = true;
     setAbierto(false);
     setSugerencias([]);
     setIndiceActivo(-1);
@@ -234,7 +250,7 @@ export default function DireccionCombobox({
     // preventDefault) gane la carrera antes de decidir si esto es una
     // "salida real" del campo.
     await new Promise((r) => setTimeout(r, 0));
-    if (degradadoRef.current || !habilitado || direccionVerificada) return;
+    if (degradadoRef.current || !habilitado || direccionVerificada || seleccionadaRef.current) return;
     const texto = calle.trim();
     if (texto.length < 4) return;
 
@@ -337,7 +353,7 @@ export default function DireccionCombobox({
             </ul>
             <div className="flex items-center gap-1.5 border-t border-slate-100 px-4 py-2">
               <GoogleLogo className="h-3.5 w-3.5 shrink-0" />
-              <span className="text-[11px] text-slate-400">Powered by Google</span>
+              <span className="text-[12px] text-[#5E5E5E]">Powered by Google</span>
             </div>
           </div>
         )}
@@ -353,7 +369,7 @@ export default function DireccionCombobox({
       )}
 
       {avisoLocalidad?.tipo === 'localidad-distinta' && (
-        <div className="mt-2 rounded-xl bg-amber-50 p-4 text-[15px] leading-relaxed text-amber-900" aria-live="polite">
+        <div className="mt-2 rounded-xl bg-amber-50 p-4 text-[18px] leading-relaxed text-amber-900" aria-live="polite">
           <p>
             Esa dirección parece estar en <b>{avisoLocalidad.localidadGoogle}</b>, no en {tituloLocalidad(localidad)}.
           </p>
@@ -381,14 +397,16 @@ export default function DireccionCombobox({
       )}
 
       {avisoLocalidad?.tipo === 'sin-altura' && (
-        <p className="mt-2 rounded-xl bg-amber-50 p-4 text-[15px] leading-relaxed text-amber-900" aria-live="polite">
-          Nos falta la altura de la calle.
+        <p className="mt-2 rounded-xl bg-amber-50 p-4 text-[18px] leading-relaxed text-amber-900" aria-live="polite">
+          Nos falta la altura de la calle. Agregá el número y volvé a elegir la dirección de la
+          lista.
         </p>
       )}
 
       {avisoLocalidad?.tipo === 'sin-verificar' && (
-        <p className="mt-2 rounded-xl bg-amber-50 p-4 text-[15px] leading-relaxed text-amber-900" aria-live="polite">
-          No pudimos verificar esa dirección. Revisá que esté bien escrita; igual podés seguir.
+        <p className="mt-2 rounded-xl bg-amber-50 p-4 text-[18px] leading-relaxed text-amber-900" aria-live="polite">
+          No pudimos confirmar esta dirección con el mapa — no es que esté mal, a veces el mapa no
+          la encuentra. Podés seguir igual: si hace falta, la revisamos antes de despachar.
         </p>
       )}
     </div>
