@@ -13,6 +13,7 @@ import {
 import { FARMACIAS_RED } from '@/lib/farmaciasRed';
 import { PasoFooter, PasoHeader } from './ui';
 import { IconCalendar, IconCheck, IconClock, IconMail, IconPhone, IconPin } from '../icons';
+import DireccionCombobox from './DireccionCombobox';
 
 const celularOk = (v: string) => v.replace(/\D/g, '').length >= 6;
 
@@ -36,8 +37,14 @@ export default function Paso2Datos({
   onCambiarARed,
   envioLocalidadTexto,
   setEnvioLocalidadTexto,
+  avisoLocalidadCambiada,
   calle,
   setCalle,
+  direccionVerificada,
+  setDireccionVerificada,
+  direccionConfirmadaTexto,
+  setDireccionConfirmadaTexto,
+  onUsarLocalidadGoogle,
   piso,
   setPiso,
   cp,
@@ -70,8 +77,14 @@ export default function Paso2Datos({
   onCambiarARed: () => void;
   envioLocalidadTexto: string;
   setEnvioLocalidadTexto: (v: string) => void;
+  avisoLocalidadCambiada: boolean;
   calle: string;
   setCalle: (v: string) => void;
+  direccionVerificada: boolean;
+  setDireccionVerificada: (v: boolean) => void;
+  direccionConfirmadaTexto: string;
+  setDireccionConfirmadaTexto: (v: string) => void;
+  onUsarLocalidadGoogle: (localidadCanonica: string) => void;
   piso: string;
   setPiso: (v: string) => void;
   cp: string;
@@ -353,6 +366,11 @@ export default function Paso2Datos({
                   <option key={t.l} value={tituloLocalidad(t.l)} />
                 ))}
               </datalist>
+              {avisoLocalidadCambiada && (
+                <p className="mt-1.5 text-[13px] text-[#475569]" aria-live="polite">
+                  Se borró la dirección al cambiar de localidad.
+                </p>
+              )}
             </div>
 
             {tarifaEncontrada && envioAdentro && (
@@ -415,13 +433,20 @@ export default function Paso2Datos({
               <label className="label-paso" htmlFor="calle">
                 Calle y número
               </label>
-              <input
+              <DireccionCombobox
                 id="calle"
-                className="input-paso"
-                placeholder="Ej: Av. Colón 1234"
-                value={calle}
-                onChange={(e) => setCalle(e.target.value)}
-                onBlur={onBlurGuardar}
+                habilitado={!!tarifaEncontrada}
+                localidad={tarifaEncontrada ? tituloLocalidad(tarifaEncontrada.l) : envioLocalidadTexto.trim()}
+                provincia={tarifaEncontrada?.p ?? ''}
+                tarifas={tarifas}
+                calle={calle}
+                setCalle={setCalle}
+                direccionVerificada={direccionVerificada}
+                setDireccionVerificada={setDireccionVerificada}
+                direccionConfirmadaTexto={direccionConfirmadaTexto}
+                setDireccionConfirmadaTexto={setDireccionConfirmadaTexto}
+                onUsarLocalidadGoogle={onUsarLocalidadGoogle}
+                onBlurGuardar={onBlurGuardar}
               />
             </div>
             <div>

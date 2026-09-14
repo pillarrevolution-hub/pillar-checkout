@@ -43,6 +43,14 @@ type Estado = {
   colegioLocalidad: string;
   envioLocalidadTexto: string;
   calle: string;
+  // Verificación de dirección con Google Places (v3.2, tema 2/3):
+  // direccionVerificada nunca bloquea nada, solo decide si
+  // guardarContacto le suma "⚠ Dirección sin verificar" al final.
+  // direccionConfirmadaTexto es la formattedAddress de Google, para la
+  // línea "✓ {formateada}" — vive en el estado (no local al combobox)
+  // para sobrevivir al desmontaje/montaje del paso al volver.
+  direccionVerificada: boolean;
+  direccionConfirmadaTexto: string;
   piso: string;
   cp: string;
   referencias: string;
@@ -58,6 +66,8 @@ const ESTADO_INICIAL: Estado = {
   colegioLocalidad: '',
   envioLocalidadTexto: '',
   calle: '',
+  direccionVerificada: false,
+  direccionConfirmadaTexto: '',
   piso: '',
   cp: '',
   referencias: '',
@@ -70,7 +80,16 @@ type CampoEditable = Exclude<keyof Estado, 'paso'>;
 type Accion =
   | { type: 'campo'; campo: CampoEditable; valor: Estado[CampoEditable] }
   | { type: 'paso'; paso: Paso }
-  | { type: 'restaurar'; estado: Estado };
+  | { type: 'restaurar'; estado: Estado }
+  // Cambiar la localidad de envío A MANO limpia la dirección ya cargada
+  // y su verificación (C2: "si el paciente cambia la localidad después,
+  // se limpian la dirección y la verificación") — pero solo si había
+  // algo que limpiar, si no es un cambio de campo normal. Distinto de
+  // 'campo' sobre envioLocalidadTexto: ese se usa para "Usar
+  // {localidadGoogle}", que cambia la localidad SIN tocar la dirección
+  // (la dirección seguía siendo la correcta, solo estaba mal
+  // etiquetada).
+  | { type: 'cambiarLocalidadEnvio'; valor: string };
 
 function reducerPaso(estado: Estado, accion: Accion): Estado {
   switch (accion.type) {
@@ -80,6 +99,14 @@ function reducerPaso(estado: Estado, accion: Accion): Estado {
       return { ...estado, paso: accion.paso };
     case 'restaurar':
       return accion.estado;
+    case 'cambiarLocalidadEnvio': {
+      const huboDireccion = estado.calle.trim() !== '' || estado.direccionVerificada;
+      return {
+        ...estado,
+        envioLocalidadTexto: accion.valor,
+        ...(huboDireccion ? { calle: '', direccionVerificada: false, direccionConfirmadaTexto: '' } : {}),
+      };
+    }
     default:
       return estado;
   }
@@ -123,6 +150,8 @@ export default function Checkout({
     colegioLocalidad,
     envioLocalidadTexto,
     calle,
+    direccionVerificada,
+    direccionConfirmadaTexto,
     piso,
     cp,
     referencias,
@@ -132,6 +161,32 @@ export default function Checkout({
 
   function campo<K extends CampoEditable>(nombre: K, valor: Estado[K]) {
     dispatch({ type: 'campo', campo: nombre, valor });
+  }
+
+  // Aviso chico (no modal, no persistente) de que cambiar la localidad
+  // borró la dirección que ya estaba cargada — pedido explícito de C2.
+  const [avisoLocalidadCambiada, setAvisoLocalidadCambiada] = useState(false);
+
+  function cambiarLocalidadEnvio(valor: string) {
+    const huboDireccion = calle.trim() !== '' || direccionVerificada;
+    dispatch({ type: 'cambiarLocalidadEnvio', valor });
+    // Solo se PRENDE acá (nunca se apaga): si se apagara cuando
+    // huboDireccion da false, la siguiente tecla que el paciente tipee
+    // en la localidad (con `calle` ya vacía por el primer borrado) lo
+    // apagaría de nuevo antes de que llegue a leerlo. Se apaga recién
+    // cuando vuelve a tocar el campo de calle (ver setCalle más abajo).
+    if (huboDireccion) setAvisoLocalidadCambiada(true);
+  }
+
+  // "Usar {localidadGoogle}": la dirección seguía siendo la correcta,
+  // solo estaba etiquetada con otra localidad — cambia la localidad
+  // SIN pasar por 'cambiarLocalidadEnvio' (que limpiaría la dirección
+  // que el combobox ya marcó como verificada).
+  function usarLocalidadGoogle(localidadCanonica: string) {
+    // localidadCanonica viene de TarifaEnvio.l — MAYÚSCULAS, como está
+    // en el tarifario. El campo de localidad siempre muestra el nombre
+    // prolijo (mismo criterio que el datalist de sugerencias).
+    campo('envioLocalidadTexto', tituloLocalidad(localidadCanonica));
   }
 
   // Hasta que el borrador se restaure (o se confirme que no había
@@ -237,7 +292,7 @@ export default function Checkout({
   const direccionEnvioCompleta = useMemo(() => {
     if (recibe !== 'envio') return '';
     const localidadDisplay = tarifaEncontrada ? tituloLocalidad(tarifaEncontrada.l) : envioLocalidadTexto.trim();
-    return [
+    const base = [
       calle.trim(),
       piso.trim(),
       localidadDisplay && cp.trim() ? `${localidadDisplay} (CP ${cp.trim()})` : localidadDisplay || (cp.trim() ? `CP ${cp.trim()}` : ''),
@@ -245,7 +300,12 @@ export default function Checkout({
       .filter(Boolean)
       .join(', ')
       .concat(referencias.trim() ? ` — ${referencias.trim()}` : '');
-  }, [recibe, calle, piso, cp, referencias, tarifaEncontrada, envioLocalidadTexto]);
+    // Igual que "Llega por Colegio: {fecha}" (C5): un texto que Atención
+    // vea en 📒 Seguimiento para que chequee a mano una dirección que
+    // Google no pudo confirmar. Verificada, no se le agrega nada.
+    if (base && !direccionVerificada) return `${base} ⚠ Dirección sin verificar`;
+    return base;
+  }, [recibe, calle, piso, cp, referencias, tarifaEncontrada, envioLocalidadTexto, direccionVerificada]);
 
   const direccionCorta = useMemo(() => {
     const localidadDisplay = tarifaEncontrada ? tituloLocalidad(tarifaEncontrada.l) : envioLocalidadTexto.trim();
@@ -505,9 +565,18 @@ export default function Checkout({
           irA(1);
         }}
         envioLocalidadTexto={envioLocalidadTexto}
-        setEnvioLocalidadTexto={(v) => campo('envioLocalidadTexto', v)}
+        setEnvioLocalidadTexto={cambiarLocalidadEnvio}
+        avisoLocalidadCambiada={avisoLocalidadCambiada}
         calle={calle}
-        setCalle={(v) => campo('calle', v)}
+        setCalle={(v) => {
+          setAvisoLocalidadCambiada(false);
+          campo('calle', v);
+        }}
+        direccionVerificada={direccionVerificada}
+        setDireccionVerificada={(v) => campo('direccionVerificada', v)}
+        direccionConfirmadaTexto={direccionConfirmadaTexto}
+        setDireccionConfirmadaTexto={(v) => campo('direccionConfirmadaTexto', v)}
+        onUsarLocalidadGoogle={usarLocalidadGoogle}
         piso={piso}
         setPiso={(v) => campo('piso', v)}
         cp={cp}

@@ -8,6 +8,7 @@
     "start": "next start",
     "test:colegio": "node --test src/lib/__tests__/colegioFechas.test.ts",
     "test:envios": "node --test src/lib/__tests__/envios.test.ts",
+    "test:direcciones": "node --test src/lib/__tests__/direcciones.test.ts src/lib/__tests__/direccionesApi.test.ts",
     "test:no-reload": "playwright test"
   },
   "dependencies": {
