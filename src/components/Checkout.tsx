@@ -182,12 +182,36 @@ export default function Checkout({
   // solo estaba etiquetada con otra localidad — cambia la localidad
   // SIN pasar por 'cambiarLocalidadEnvio' (que limpiaría la dirección
   // que el combobox ya marcó como verificada).
+  //
+  // C3 (impeccable, 14-sep): este cambio de localidad puede cambiar
+  // cuánto paga el paciente por el envío — el botón que dispara esto ya
+  // muestra el precio nuevo ANTES de tocarlo (DireccionCombobox), pero
+  // acá además se compara contra el precio ANTERIOR (el de la localidad
+  // que el paciente había tipeado) para decidir si hace falta resaltar
+  // la caja de precio y anunciarlo — si no cambió (p. ej. envioAdentro,
+  // que siempre da $0), no se avisa nada: un aviso que nunca cambia
+  // enseña a ignorar los avisos.
   function usarLocalidadGoogle(localidadCanonica: string) {
+    const tarifaNueva = buscarTarifa(localidadCanonica, tarifas);
+    const montoAnterior = payload.envioAdentro ? 0 : (tarifaEncontrada ? tarifaEncontrada.m : null);
+    const montoNuevo = payload.envioAdentro ? 0 : (tarifaNueva ? tarifaNueva.m : null);
     // localidadCanonica viene de TarifaEnvio.l — MAYÚSCULAS, como está
     // en el tarifario. El campo de localidad siempre muestra el nombre
     // prolijo (mismo criterio que el datalist de sugerencias).
     campo('envioLocalidadTexto', tituloLocalidad(localidadCanonica));
+    if (montoNuevo !== null && montoNuevo !== montoAnterior) {
+      setAvisoPrecioActualizado(formatoPeso(montoNuevo));
+    }
   }
+
+  // Se apaga sola: el resaltado y el anuncio son un instante, no un
+  // estado permanente de la pantalla.
+  const [avisoPrecioActualizado, setAvisoPrecioActualizado] = useState<string | null>(null);
+  useEffect(() => {
+    if (!avisoPrecioActualizado) return;
+    const t = setTimeout(() => setAvisoPrecioActualizado(null), 4000);
+    return () => clearTimeout(t);
+  }, [avisoPrecioActualizado]);
 
   // Hasta que el borrador se restaure (o se confirme que no había
   // ninguno), no sabemos qué paso mostrar: mientras tanto se pinta un
@@ -577,6 +601,7 @@ export default function Checkout({
         direccionConfirmadaTexto={direccionConfirmadaTexto}
         setDireccionConfirmadaTexto={(v) => campo('direccionConfirmadaTexto', v)}
         onUsarLocalidadGoogle={usarLocalidadGoogle}
+        avisoPrecioActualizado={avisoPrecioActualizado}
         piso={piso}
         setPiso={(v) => campo('piso', v)}
         cp={cp}

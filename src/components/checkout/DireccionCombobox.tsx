@@ -2,6 +2,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { buscarTarifa, tituloLocalidad, type TarifaEnvio } from '@/lib/envios';
 import { coincideAproximado, localidadesCoinciden } from '@/lib/direcciones';
+import { formatoPeso } from '@/lib/firma';
 import { IconCheck } from '../icons';
 
 // ---------------------------------------------------------------
@@ -27,7 +28,7 @@ type DetalleGoogle = {
   formateada: string;
 };
 type AvisoLocalidad =
-  | { tipo: 'localidad-distinta'; localidadGoogle: string; tarifaCanonica: string | null }
+  | { tipo: 'localidad-distinta'; localidadGoogle: string; tarifaCanonica: string | null; montoGoogle: number | null }
   | { tipo: 'sin-altura' }
   | { tipo: 'sin-verificar' };
 
@@ -45,6 +46,7 @@ export default function DireccionCombobox({
   localidad,
   provincia,
   tarifas,
+  envioAdentro,
   calle,
   setCalle,
   direccionVerificada,
@@ -59,6 +61,7 @@ export default function DireccionCombobox({
   localidad: string;
   provincia: string;
   tarifas: TarifaEnvio[];
+  envioAdentro?: boolean;
   calle: string;
   setCalle: (v: string) => void;
   direccionVerificada: boolean;
@@ -173,7 +176,12 @@ export default function DireccionCombobox({
     if (!localidadesCoinciden(data.localidadGoogle, localidad)) {
       const tarifaGoogle = buscarTarifa(data.localidadGoogle, tarifas);
       pendienteRef.current = data;
-      setAvisoLocalidad({ tipo: 'localidad-distinta', localidadGoogle: data.localidadGoogle, tarifaCanonica: tarifaGoogle?.l ?? null });
+      setAvisoLocalidad({
+        tipo: 'localidad-distinta',
+        localidadGoogle: data.localidadGoogle,
+        tarifaCanonica: tarifaGoogle?.l ?? null,
+        montoGoogle: tarifaGoogle?.m ?? null,
+      });
       setDireccionVerificada(false);
       setDireccionConfirmadaTexto('');
       return;
@@ -358,7 +366,8 @@ export default function DireccionCombobox({
                 className="min-h-[44px] flex-1 rounded-xl border border-amber-300 bg-white px-4 py-2.5 text-[14px] font-bold text-amber-900 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee7]"
                 onClick={usarLocalidadGoogle}
               >
-                Usar {avisoLocalidad.localidadGoogle}
+                Usar {avisoLocalidad.localidadGoogle} · envío{' '}
+                {envioAdentro ? 'incluido en el precio' : formatoPeso(avisoLocalidad.montoGoogle ?? 0)}
               </button>
             )}
             <button

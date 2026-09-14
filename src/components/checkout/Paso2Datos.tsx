@@ -45,6 +45,7 @@ export default function Paso2Datos({
   direccionConfirmadaTexto,
   setDireccionConfirmadaTexto,
   onUsarLocalidadGoogle,
+  avisoPrecioActualizado,
   piso,
   setPiso,
   cp,
@@ -85,6 +86,7 @@ export default function Paso2Datos({
   direccionConfirmadaTexto: string;
   setDireccionConfirmadaTexto: (v: string) => void;
   onUsarLocalidadGoogle: (localidadCanonica: string) => void;
+  avisoPrecioActualizado?: string | null;
   piso: string;
   setPiso: (v: string) => void;
   cp: string;
@@ -374,13 +376,23 @@ export default function Paso2Datos({
             </div>
 
             {tarifaEncontrada && envioAdentro && (
-              <div className="rounded-xl bg-[#eaf3fd] p-4 text-[#2d5175]" aria-live="polite">
+              <div
+                className={`rounded-xl bg-[#eaf3fd] p-4 text-[#2d5175] transition-shadow duration-500 ${
+                  avisoPrecioActualizado ? 'ring-2 ring-[#3d8ee7]' : ''
+                }`}
+                aria-live="polite"
+              >
                 <p className="tabular-nums text-[18px] font-bold">Envío incluido en el precio</p>
               </div>
             )}
 
             {tarifaEncontrada && !envioAdentro && (
-              <div className="rounded-xl bg-[#eaf3fd] p-4 text-[#2d5175]" aria-live="polite">
+              <div
+                className={`rounded-xl bg-[#eaf3fd] p-4 text-[#2d5175] transition-shadow duration-500 ${
+                  avisoPrecioActualizado ? 'ring-2 ring-[#3d8ee7]' : ''
+                }`}
+                aria-live="polite"
+              >
                 <p className="tabular-nums text-[18px] font-bold">
                   El envío a {tituloLocalidad(tarifaEncontrada.l)} cuesta {formatoPeso(tarifaEncontrada.m)}
                 </p>
@@ -394,6 +406,11 @@ export default function Paso2Datos({
                 )}
                 <p className="mt-2 text-[13px] text-[#2d5175]">{leyendaEnvio}</p>
               </div>
+            )}
+            {avisoPrecioActualizado && (
+              <p className="sr-only" aria-live="polite">
+                Envío actualizado a {avisoPrecioActualizado}
+              </p>
             )}
 
             {noEncontrada && (
@@ -439,6 +456,7 @@ export default function Paso2Datos({
                 localidad={tarifaEncontrada ? tituloLocalidad(tarifaEncontrada.l) : envioLocalidadTexto.trim()}
                 provincia={tarifaEncontrada?.p ?? ''}
                 tarifas={tarifas}
+                envioAdentro={envioAdentro}
                 calle={calle}
                 setCalle={setCalle}
                 direccionVerificada={direccionVerificada}
