@@ -64,7 +64,7 @@ export default function Paso4Pagar({
   }
 
   return (
-    <div className="tarjeta fade-paso">
+    <>
       {pago === 'transferencia' ? (
         <>
           <h2 className="font-sans text-[26px] font-bold tabular-nums text-tinta">
@@ -167,6 +167,6 @@ export default function Paso4Pagar({
       )}
 
       <PasoFooter onVolver={onVolver} whatsapp={whatsapp} cotizacion={cotizacion} />
-    </div>
+    </>
   );
 }

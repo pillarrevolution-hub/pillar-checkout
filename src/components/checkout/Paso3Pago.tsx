@@ -31,7 +31,7 @@ export default function Paso3Pago({
   onVolver: () => void;
 }) {
   return (
-    <div className="tarjeta fade-paso flex min-h-[520px] flex-col">
+    <>
       <PasoHeader paso={3} />
       <h2 className="mt-5 font-sans text-[26px] font-bold text-tinta">¿Cómo querés pagar?</h2>
 
@@ -97,6 +97,6 @@ export default function Paso3Pago({
         errorContacto={errorContacto}
         onReintentarContacto={onReintentarContacto}
       />
-    </div>
+    </>
   );
 }

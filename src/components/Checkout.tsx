@@ -43,6 +43,14 @@ type Estado = {
   colegioLocalidad: string;
   envioLocalidadTexto: string;
   calle: string;
+  // Verificación de dirección con Google Places (v3.2, tema 2/3):
+  // direccionVerificada nunca bloquea nada, solo decide si
+  // guardarContacto le suma "⚠ Dirección sin verificar" al final.
+  // direccionConfirmadaTexto es la formattedAddress de Google, para la
+  // línea "✓ {formateada}" — vive en el estado (no local al combobox)
+  // para sobrevivir al desmontaje/montaje del paso al volver.
+  direccionVerificada: boolean;
+  direccionConfirmadaTexto: string;
   piso: string;
   cp: string;
   referencias: string;
@@ -58,6 +66,8 @@ const ESTADO_INICIAL: Estado = {
   colegioLocalidad: '',
   envioLocalidadTexto: '',
   calle: '',
+  direccionVerificada: false,
+  direccionConfirmadaTexto: '',
   piso: '',
   cp: '',
   referencias: '',
@@ -70,7 +80,16 @@ type CampoEditable = Exclude<keyof Estado, 'paso'>;
 type Accion =
   | { type: 'campo'; campo: CampoEditable; valor: Estado[CampoEditable] }
   | { type: 'paso'; paso: Paso }
-  | { type: 'restaurar'; estado: Estado };
+  | { type: 'restaurar'; estado: Estado }
+  // Cambiar la localidad de envío A MANO limpia la dirección ya cargada
+  // y su verificación (C2: "si el paciente cambia la localidad después,
+  // se limpian la dirección y la verificación") — pero solo si había
+  // algo que limpiar, si no es un cambio de campo normal. Distinto de
+  // 'campo' sobre envioLocalidadTexto: ese se usa para "Usar
+  // {localidadGoogle}", que cambia la localidad SIN tocar la dirección
+  // (la dirección seguía siendo la correcta, solo estaba mal
+  // etiquetada).
+  | { type: 'cambiarLocalidadEnvio'; valor: string };
 
 function reducerPaso(estado: Estado, accion: Accion): Estado {
   switch (accion.type) {
@@ -80,6 +99,14 @@ function reducerPaso(estado: Estado, accion: Accion): Estado {
       return { ...estado, paso: accion.paso };
     case 'restaurar':
       return accion.estado;
+    case 'cambiarLocalidadEnvio': {
+      const huboDireccion = estado.calle.trim() !== '' || estado.direccionVerificada;
+      return {
+        ...estado,
+        envioLocalidadTexto: accion.valor,
+        ...(huboDireccion ? { calle: '', direccionVerificada: false, direccionConfirmadaTexto: '' } : {}),
+      };
+    }
     default:
       return estado;
   }
@@ -123,6 +150,8 @@ export default function Checkout({
     colegioLocalidad,
     envioLocalidadTexto,
     calle,
+    direccionVerificada,
+    direccionConfirmadaTexto,
     piso,
     cp,
     referencias,
@@ -133,6 +162,56 @@ export default function Checkout({
   function campo<K extends CampoEditable>(nombre: K, valor: Estado[K]) {
     dispatch({ type: 'campo', campo: nombre, valor });
   }
+
+  // Aviso chico (no modal, no persistente) de que cambiar la localidad
+  // borró la dirección que ya estaba cargada — pedido explícito de C2.
+  const [avisoLocalidadCambiada, setAvisoLocalidadCambiada] = useState(false);
+
+  function cambiarLocalidadEnvio(valor: string) {
+    const huboDireccion = calle.trim() !== '' || direccionVerificada;
+    dispatch({ type: 'cambiarLocalidadEnvio', valor });
+    // Solo se PRENDE acá (nunca se apaga): si se apagara cuando
+    // huboDireccion da false, la siguiente tecla que el paciente tipee
+    // en la localidad (con `calle` ya vacía por el primer borrado) lo
+    // apagaría de nuevo antes de que llegue a leerlo. Se apaga recién
+    // cuando vuelve a tocar el campo de calle (ver setCalle más abajo).
+    if (huboDireccion) setAvisoLocalidadCambiada(true);
+  }
+
+  // "Usar {localidadGoogle}": la dirección seguía siendo la correcta,
+  // solo estaba etiquetada con otra localidad — cambia la localidad
+  // SIN pasar por 'cambiarLocalidadEnvio' (que limpiaría la dirección
+  // que el combobox ya marcó como verificada).
+  //
+  // C3 (impeccable, 14-sep): este cambio de localidad puede cambiar
+  // cuánto paga el paciente por el envío — el botón que dispara esto ya
+  // muestra el precio nuevo ANTES de tocarlo (DireccionCombobox), pero
+  // acá además se compara contra el precio ANTERIOR (el de la localidad
+  // que el paciente había tipeado) para decidir si hace falta resaltar
+  // la caja de precio y anunciarlo — si no cambió (p. ej. envioAdentro,
+  // que siempre da $0), no se avisa nada: un aviso que nunca cambia
+  // enseña a ignorar los avisos.
+  function usarLocalidadGoogle(localidadCanonica: string) {
+    const tarifaNueva = buscarTarifa(localidadCanonica, tarifas);
+    const montoAnterior = payload.envioAdentro ? 0 : (tarifaEncontrada ? tarifaEncontrada.m : null);
+    const montoNuevo = payload.envioAdentro ? 0 : (tarifaNueva ? tarifaNueva.m : null);
+    // localidadCanonica viene de TarifaEnvio.l — MAYÚSCULAS, como está
+    // en el tarifario. El campo de localidad siempre muestra el nombre
+    // prolijo (mismo criterio que el datalist de sugerencias).
+    campo('envioLocalidadTexto', tituloLocalidad(localidadCanonica));
+    if (montoNuevo !== null && montoNuevo !== montoAnterior) {
+      setAvisoPrecioActualizado(formatoPeso(montoNuevo));
+    }
+  }
+
+  // Se apaga sola: el resaltado y el anuncio son un instante, no un
+  // estado permanente de la pantalla.
+  const [avisoPrecioActualizado, setAvisoPrecioActualizado] = useState<string | null>(null);
+  useEffect(() => {
+    if (!avisoPrecioActualizado) return;
+    const t = setTimeout(() => setAvisoPrecioActualizado(null), 4000);
+    return () => clearTimeout(t);
+  }, [avisoPrecioActualizado]);
 
   // Hasta que el borrador se restaure (o se confirme que no había
   // ninguno), no sabemos qué paso mostrar: mientras tanto se pinta un
@@ -185,7 +264,12 @@ export default function Checkout({
   useLayoutEffect(() => {
     const draft = cargarDraft(payload.o);
     if (draft) dispatch({ type: 'restaurar', estado: draft });
-    window.history.replaceState({ paso: draft?.paso ?? 0 }, '');
+    // Se preserva el resto de history.state (Next.js guarda ahí sus
+    // propios internals de router, __NA entre otros) y solo se pisa la
+    // clave `paso`: reemplazar el objeto entero deja a Next sin sus datos
+    // y su handler de popstate, al no encontrarlos, fuerza una recarga
+    // completa en vez de solo re-renderizar — eso era el "parpadeo".
+    window.history.replaceState({ ...window.history.state, paso: draft?.paso ?? 0 }, '');
     setListo(true);
     function onPop(e: PopStateEvent) {
       const p = (e.state as { paso?: number } | null)?.paso;
@@ -198,7 +282,7 @@ export default function Checkout({
 
   function irA(n: Paso) {
     dispatch({ type: 'paso', paso: n });
-    window.history.pushState({ paso: n }, '');
+    window.history.pushState({ ...window.history.state, paso: n }, '');
   }
   const volver = () => window.history.back();
 
@@ -232,7 +316,7 @@ export default function Checkout({
   const direccionEnvioCompleta = useMemo(() => {
     if (recibe !== 'envio') return '';
     const localidadDisplay = tarifaEncontrada ? tituloLocalidad(tarifaEncontrada.l) : envioLocalidadTexto.trim();
-    return [
+    const base = [
       calle.trim(),
       piso.trim(),
       localidadDisplay && cp.trim() ? `${localidadDisplay} (CP ${cp.trim()})` : localidadDisplay || (cp.trim() ? `CP ${cp.trim()}` : ''),
@@ -240,7 +324,12 @@ export default function Checkout({
       .filter(Boolean)
       .join(', ')
       .concat(referencias.trim() ? ` — ${referencias.trim()}` : '');
-  }, [recibe, calle, piso, cp, referencias, tarifaEncontrada, envioLocalidadTexto]);
+    // Igual que "Llega por Colegio: {fecha}" (C5): un texto que Atención
+    // vea en 📒 Seguimiento para que chequee a mano una dirección que
+    // Google no pudo confirmar. Verificada, no se le agrega nada.
+    if (base && !direccionVerificada) return `${base} ⚠ Dirección sin verificar`;
+    return base;
+  }, [recibe, calle, piso, cp, referencias, tarifaEncontrada, envioLocalidadTexto, direccionVerificada]);
 
   const direccionCorta = useMemo(() => {
     const localidadDisplay = tarifaEncontrada ? tituloLocalidad(tarifaEncontrada.l) : envioLocalidadTexto.trim();
@@ -422,8 +511,16 @@ export default function Checkout({
     return <div className="tarjeta" style={{ minHeight: 520, background: '#edf2f8' }} />;
   }
 
+  // Shell único (tarjeta blanca + piso de alto) para las 6 pantallas del
+  // wizard: antes cada PasoN traía su propio wrapper .tarjeta, con
+  // min-height inconsistente (Paso1/2/3 lo fijaban, Home/Paso4/Paso5 no)
+  // — eso hacía saltar el alto de la tarjeta en cada transición. Ahora
+  // cada PasoN devuelve solo su contenido y el alto se fija acá, una
+  // sola vez, parejo para los 6.
+  let contenido: React.ReactNode = null;
+
   if (paso === 0) {
-    return (
+    contenido = (
       <Home
         nombre={payload.n}
         li={li}
@@ -435,10 +532,8 @@ export default function Checkout({
         onEmpezar={() => irA(1)}
       />
     );
-  }
-
-  if (paso === 1) {
-    return (
+  } else if (paso === 1) {
+    contenido = (
       <Paso1Recibir
         cotizacion={payload.o}
         hayEnvios={!!payload.envios}
@@ -463,10 +558,8 @@ export default function Checkout({
         onVolver={volver}
       />
     );
-  }
-
-  if (paso === 2 && recibe) {
-    return (
+  } else if (paso === 2 && recibe) {
+    contenido = (
       <Paso2Datos
         cotizacion={payload.o}
         recibe={recibe}
@@ -496,9 +589,19 @@ export default function Checkout({
           irA(1);
         }}
         envioLocalidadTexto={envioLocalidadTexto}
-        setEnvioLocalidadTexto={(v) => campo('envioLocalidadTexto', v)}
+        setEnvioLocalidadTexto={cambiarLocalidadEnvio}
+        avisoLocalidadCambiada={avisoLocalidadCambiada}
         calle={calle}
-        setCalle={(v) => campo('calle', v)}
+        setCalle={(v) => {
+          setAvisoLocalidadCambiada(false);
+          campo('calle', v);
+        }}
+        direccionVerificada={direccionVerificada}
+        setDireccionVerificada={(v) => campo('direccionVerificada', v)}
+        direccionConfirmadaTexto={direccionConfirmadaTexto}
+        setDireccionConfirmadaTexto={(v) => campo('direccionConfirmadaTexto', v)}
+        onUsarLocalidadGoogle={usarLocalidadGoogle}
+        avisoPrecioActualizado={avisoPrecioActualizado}
         piso={piso}
         setPiso={(v) => campo('piso', v)}
         cp={cp}
@@ -562,7 +665,7 @@ export default function Checkout({
         : payload.envioAdentro
           ? 'Tratamiento (envío incluido en el precio)'
           : `Tratamiento + envío a ${tarifaEncontrada ? tituloLocalidad(tarifaEncontrada.l) : ''}`;
-    return (
+    contenido = (
       <Paso3Pago
         cotizacion={payload.o}
         barraTexto={barraTexto}
@@ -581,7 +684,7 @@ export default function Checkout({
   }
 
   if (paso === 4) {
-    return (
+    contenido = (
       <Paso4Pagar
         cotizacion={payload.o}
         pago={pago}
@@ -608,7 +711,7 @@ export default function Checkout({
       recibo,
       celular: celular.trim() || 's/d',
     });
-    return (
+    contenido = (
       <Paso5Confirmacion
         nombre={payload.n}
         monto={t.contado}
@@ -630,5 +733,9 @@ export default function Checkout({
     );
   }
 
-  return null;
+  return (
+    <div className={`tarjeta fade-paso flex min-h-[520px] flex-col${paso === 5 ? ' text-center' : ''}`}>
+      {contenido}
+    </div>
+  );
 }
