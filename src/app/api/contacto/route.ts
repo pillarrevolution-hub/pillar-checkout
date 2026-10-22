@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { total, verificarLink, type EleccionEnvio, type PayloadCheckout } from '@/lib/firma';
 import { obtenerDatos } from '@/lib/datos';
+import { normalizarRetiroModo } from '@/lib/retiroModo';
 
 // Contacto del paciente (v2.2, extendido en v3 con envío/retiro): celular,
 // dirección y la elección de recibo que hace en el paso a paso. Se
@@ -22,8 +23,9 @@ export async function POST(req: NextRequest) {
 
   const celular = typeof body?.celular === 'string' ? body.celular.trim().slice(0, 60) : '';
   const direccion = typeof body?.direccion === 'string' ? body.direccion.trim().slice(0, 300) : '';
-  const retiroModo: 'red' | 'colegio' | '' =
-    body?.retiroModo === 'red' || body?.retiroModo === 'colegio' ? body.retiroModo : '';
+  // Un retiroModo desconocido (versión vieja/nueva del checkout, valor
+  // corrupto) se ignora en silencio — nunca frena el guardado de contacto.
+  const retiroModo = normalizarRetiroModo(body?.retiroModo);
   const retiroLugar = typeof body?.retiroLugar === 'string' ? body.retiroLugar.trim().slice(0, 80) : '';
   // Ya vino RESUELTA desde el navegador (buscarTarifa contra el mismo
   // tarifario vivo) — Malvinas la vuelve a resolver igual, esto es solo

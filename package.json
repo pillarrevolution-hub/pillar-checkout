@@ -9,6 +9,8 @@
     "test:colegio": "node --test src/lib/__tests__/colegioFechas.test.ts",
     "test:envios": "node --test src/lib/__tests__/envios.test.ts",
     "test:direcciones": "node --test src/lib/__tests__/direcciones.test.ts src/lib/__tests__/direccionesApi.test.ts",
+    "test:badra": "node --test src/lib/__tests__/badra.test.ts",
+    "test": "node --test src/lib/__tests__/colegioFechas.test.ts src/lib/__tests__/envios.test.ts src/lib/__tests__/direcciones.test.ts src/lib/__tests__/direccionesApi.test.ts src/lib/__tests__/badra.test.ts",
     "test:no-reload": "playwright test",
     "test:direccion-estable": "playwright test tests/direccion-estable.spec.ts",
     "test:certificacion": "playwright test tests/certificacion-parpadeo.spec.ts tests/certificacion-refresh.spec.ts"

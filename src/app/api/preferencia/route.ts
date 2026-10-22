@@ -3,6 +3,7 @@ import { montoEnvio, total, verificarLink, type EleccionEnvio, type PayloadCheck
 import { obtenerDatos } from '@/lib/datos';
 import { buscarTarifa } from '@/lib/envios';
 import { crearPreferencia } from '@/lib/mp';
+import { normalizarRetiroModo } from '@/lib/retiroModo';
 
 // Crea la preferencia de Mercado Pago (Checkout Pro). Acepta las dos
 // formas del link — corto {c, t} (busca datos VIVOS en Malvinas) y viejo
@@ -23,8 +24,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Este pedido ya está pago.' }, { status: 409 });
   }
 
-  const retiroModo: 'red' | 'colegio' | '' =
-    body?.retiroModo === 'red' || body?.retiroModo === 'colegio' ? body.retiroModo : '';
+  // Un retiroModo desconocido nunca frena un pago: se ignora y el
+  // paciente sigue como si hubiera elegido retiro sin especificar medio.
+  const retiroModo = normalizarRetiroModo(body?.retiroModo);
   const retiroLugar = typeof body?.retiroLugar === 'string' ? body.retiroLugar.trim().slice(0, 80) : '';
   const envioLocalidadTexto = typeof body?.envioLocalidad === 'string' ? body.envioLocalidad.trim() : '';
   const tipo: 'contado' | 'cuotas' = body?.tipo === 'cuotas' ? 'cuotas' : 'contado';

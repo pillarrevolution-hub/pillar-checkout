@@ -11,6 +11,7 @@ import {
 import { buscarTarifa, tituloLocalidad } from '@/lib/envios';
 import { descripcionRecibo, mensajeConfirmacion, reciboMostrado, type ReciboElegido } from '@/lib/mensajes';
 import { FARMACIAS_RED } from '@/lib/farmaciasRed';
+import { RETIRO_LUGAR_BADRA } from '@/lib/farmaciaBadra';
 import { proximoRepartoColegio, fechaRepartoTexto } from '@/lib/colegioFechas';
 import Home from './checkout/Home';
 import Paso1Recibir from './checkout/Paso1Recibir';
@@ -33,7 +34,7 @@ import Paso5Confirmacion from './checkout/Paso5Confirmacion';
 
 type Paso = 0 | 1 | 2 | 3 | 4 | 5;
 type Recibe = 'retiro' | 'envio' | null;
-type RetiroModo = 'red' | 'colegio' | '';
+type RetiroModo = 'red' | 'colegio' | 'badra' | '';
 
 type Estado = {
   paso: Paso;
@@ -349,7 +350,11 @@ export default function Checkout({
       ? direccionEnvioCompleta
       : recibe === 'retiro' && retiroModo === 'colegio' && fechaColegioTexto
         ? `Llega por Colegio: ${fechaColegioTexto}`
-        : '';
+        // Badra no pide dirección (el local es fijo): los "comentarios"
+        // opcionales viajan en el mismo campo que usa el resto del Paso 2.
+        : recibe === 'retiro' && retiroModo === 'badra'
+          ? referencias.trim()
+          : '';
 
   // Guarda contacto/elección en Malvinas. Si falla, NO marca la clave como
   // guardada (para que el próximo Siguiente — o "Reintentar" — lo
@@ -359,7 +364,13 @@ export default function Checkout({
     const envioLocalidadEnviar = recibe === 'envio' && tarifaEncontrada ? tarifaEncontrada.l : '';
     const retiroModoEnviar: RetiroModo = recibe === 'retiro' ? retiroModo : '';
     const retiroLugarEnviar =
-      retiroModoEnviar === 'red' ? farmaciaRed : retiroModoEnviar === 'colegio' ? colegioLocalidad.trim() : '';
+      retiroModoEnviar === 'red'
+        ? farmaciaRed
+        : retiroModoEnviar === 'colegio'
+          ? colegioLocalidad.trim()
+          : retiroModoEnviar === 'badra'
+            ? RETIRO_LUGAR_BADRA
+            : '';
     const tipoEnviar = pago === 'cuotas' ? 'cuotas' : 'contado';
     const envioMontoEnviar = envioLocalidadEnviar ? (payload.envioAdentro ? 0 : (tarifaEncontrada?.m ?? 0)) : null;
 
@@ -490,7 +501,14 @@ export default function Checkout({
         body: JSON.stringify({
           ...fuente,
           retiroModo: recibe === 'retiro' ? retiroModo : '',
-          retiroLugar: recibe === 'retiro' ? (retiroModo === 'red' ? farmaciaRed : colegioLocalidad.trim()) : '',
+          retiroLugar:
+            recibe === 'retiro'
+              ? retiroModo === 'red'
+                ? farmaciaRed
+                : retiroModo === 'badra'
+                  ? RETIRO_LUGAR_BADRA
+                  : colegioLocalidad.trim()
+              : '',
           envioLocalidad: recibe === 'envio' && tarifaEncontrada ? tarifaEncontrada.l : '',
           tipo: pago === 'cuotas' ? 'cuotas' : 'contado',
           celular: celular.trim(),
@@ -635,9 +653,11 @@ export default function Checkout({
       ? { modo: 'red', sucursal: farmaciaRed }
       : recibe === 'retiro' && retiroModo === 'colegio'
         ? { modo: 'colegio', localidad: colegioLocalidad.trim(), fecha: fechaColegioTexto ?? undefined }
-        : recibe === 'envio'
-          ? { modo: 'envio', direccion: direccionCorta }
-          : null;
+        : recibe === 'retiro' && retiroModo === 'badra'
+          ? { modo: 'badra' }
+          : recibe === 'envio'
+            ? { modo: 'envio', direccion: direccionCorta }
+            : null;
   const recibo = reciboElegido ? descripcionRecibo(reciboElegido) : '';
   const reciboVisible = reciboElegido ? reciboMostrado(reciboElegido) : '';
 
@@ -729,6 +749,7 @@ export default function Checkout({
             ? { localidad: colegioLocalidad.trim(), o: payload.o, nombre: payload.n }
             : undefined
         }
+        mostrarBadraInfo={recibe === 'retiro' && retiroModo === 'badra'}
       />
     );
   }

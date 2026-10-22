@@ -76,9 +76,11 @@ function resumenDesdePago(pago: PagoMP, cotizacionId: string): ResumenPago {
       ? ({ modo: 'red', sucursal: retiroLugar } as const)
       : retiroModo === 'colegio'
         ? ({ modo: 'colegio', localidad: retiroLugar, fecha: retiroFechaColegio || undefined } as const)
-        : envioLocalidad
-          ? ({ modo: 'envio', direccion: direccionTexto || envioLocalidad } as const)
-          : null;
+        : retiroModo === 'badra'
+          ? ({ modo: 'badra' } as const)
+          : envioLocalidad
+            ? ({ modo: 'envio', direccion: direccionTexto || envioLocalidad } as const)
+            : null;
 
   const recibo = reciboElegido ? descripcionRecibo(reciboElegido) : 'retiro en farmacia';
   const reciboMostradoTexto = reciboElegido ? reciboMostrado(reciboElegido) : 'retiro en farmacia';
