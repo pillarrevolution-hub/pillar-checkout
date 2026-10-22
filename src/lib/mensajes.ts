@@ -1,3 +1,5 @@
+import { FARMACIA_BADRA, RETIRO_LUGAR_BADRA } from './farmaciaBadra.ts';
+
 // Mensaje de WhatsApp YA ESCRITO para la confirmación (paso 5 en el
 // checkout — transferencia recién subida — y /gracias al volver de
 // Mercado Pago): mismo formato en los dos lugares para que Tomi pueda
@@ -15,12 +17,16 @@ export function mensajeConfirmacion(args: {
 export type ReciboElegido =
   | { modo: 'red'; sucursal: string }
   | { modo: 'colegio'; localidad: string; fecha?: string }
+  | { modo: 'badra' }
   | { modo: 'envio'; direccion: string };
 
 export function descripcionRecibo(r: ReciboElegido): string {
   if (r.modo === 'red') return `retiro en Farmacia RED ${r.sucursal}`;
   if (r.modo === 'colegio') {
     return `retiro en una farmacia de ${r.localidad} (Colegio${r.fecha ? `, llega el ${r.fecha}` : ''})`;
+  }
+  if (r.modo === 'badra') {
+    return `retiro en ${RETIRO_LUGAR_BADRA} (${FARMACIA_BADRA.horario.toLowerCase()})`;
   }
   return `envío a ${r.direccion}`;
 }

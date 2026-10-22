@@ -18,13 +18,13 @@ export default function Paso1Recibir({
   cotizacion: number;
   hayEnvios: boolean;
   recibe: 'retiro' | 'envio' | null;
-  retiroModo: 'red' | 'colegio' | '';
+  retiroModo: 'red' | 'colegio' | 'badra' | '';
   whatsapp: string | null;
   errorContacto?: boolean;
   onReintentarContacto?: () => void;
   avisoCambio?: '' | 'envio' | 'red';
   onElegirRecibe: (r: 'retiro' | 'envio') => void;
-  onElegirRetiroModo: (m: 'red' | 'colegio') => void;
+  onElegirRetiroModo: (m: 'red' | 'colegio' | 'badra') => void;
   onSiguiente: () => void;
   onVolver: () => void;
 }) {
@@ -46,7 +46,7 @@ export default function Paso1Recibir({
             <Radio activo={recibe === 'retiro'} />
             <span>
               <span className="block text-[19px] font-bold text-tinta">Lo retiro en una farmacia</span>
-              <span className="block text-[15px] text-[#475569]">Sin cargo.</span>
+              <span className="block text-[15px] text-[#475569]">Sin cargo. Córdoba capital e interior.</span>
             </span>
           </span>
         </button>
@@ -63,12 +63,26 @@ export default function Paso1Recibir({
                 <span className="flex items-center gap-2.5">
                   <RadioChico activo={retiroModo === 'red'} />
                   <span>
-                    <span className="block text-[15px] font-bold text-tinta">Córdoba capital</span>
+                    <span className="block text-[15px] font-bold text-tinta">Córdoba capital · Farmacias RED</span>
                     <span className="block text-[13px] text-[#475569]">En una Farmacia RED, la que elijas.</span>
                   </span>
                 </span>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src="/farmacias-red.png" alt="Farmacias RED" width={498} height={302} className="h-14 w-auto shrink-0" />
+              </span>
+            </button>
+            <button
+              className={`opcion-chica ${retiroModo === 'badra' ? 'border-[#3d8ee7] bg-[#f2f8ff]' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+              onClick={() => onElegirRetiroModo('badra')}
+              role="radio"
+              aria-checked={retiroModo === 'badra'}
+            >
+              <span className="flex items-center gap-2.5">
+                <RadioChico activo={retiroModo === 'badra'} />
+                <span>
+                  <span className="block text-[15px] font-bold text-tinta">Córdoba capital · Nueva Farmacia Badra</span>
+                  <span className="block text-[13px] text-[#475569]">Félix Paz 585.</span>
+                </span>
               </span>
             </button>
             <button
@@ -100,9 +114,9 @@ export default function Paso1Recibir({
             <span className="flex items-start gap-3">
               <Radio activo={recibe === 'envio'} />
               <span>
-                <span className="block text-[19px] font-bold text-tinta">Me lo mandan a casa</span>
+                <span className="block text-[19px] font-bold text-tinta">Envío a domicilio</span>
                 <span className="block text-[15px] text-[#475569]">
-                  Te decimos cuánto cuesta y cuánto demora el envío a tu localidad.
+                  Por un tercero por cuenta y orden del paciente.
                 </span>
               </span>
             </span>
@@ -117,7 +131,7 @@ export default function Paso1Recibir({
             <span className="flex items-start gap-3">
               <Radio activo={false} />
               <span>
-                <span className="block text-[19px] font-bold text-slate-400">Me lo mandan a casa</span>
+                <span className="block text-[19px] font-bold text-slate-400">Envío a domicilio</span>
                 <span className="block text-[15px] text-[#475569]">
                   {whatsapp ? (
                     <a

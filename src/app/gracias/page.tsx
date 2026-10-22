@@ -3,6 +3,7 @@ import { linkWhatsApp, whatsappNumero } from '@/lib/datos';
 import { formatoPeso } from '@/lib/firma';
 import { mensajeConfirmacion } from '@/lib/mensajes';
 import { FARMACIAS_RED } from '@/lib/farmaciasRed';
+import { FARMACIA_BADRA } from '@/lib/farmaciaBadra';
 import { IconCheck } from '@/components/icons';
 
 export const dynamic = 'force-dynamic';
@@ -49,6 +50,7 @@ export default async function Gracias({
     resumen && resumen.retiroModo === 'colegio' && resumen.retiroLugar
       ? { localidad: resumen.retiroLugar, o: resumen.o, nombre: resumen.nombre || 'paciente' }
       : undefined;
+  const mostrarBadraInfo = resumen?.retiroModo === 'badra';
 
   if (pendiente) {
     return (
@@ -84,6 +86,11 @@ export default async function Gracias({
               <a href={`tel:${farmaciaRedInfo.telefonoE164}`} className="link-tap underline">
                 {farmaciaRedInfo.telefono}
               </a>
+            </p>
+          )}
+          {mostrarBadraInfo && (
+            <p className="text-[13px] text-[#475569]">
+              {FARMACIA_BADRA.direccion} · {FARMACIA_BADRA.horario}
             </p>
           )}
           {colegioInfo && (

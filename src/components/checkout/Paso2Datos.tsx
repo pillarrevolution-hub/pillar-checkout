@@ -11,6 +11,7 @@ import {
   type TarifaEnvio,
 } from '@/lib/envios';
 import { FARMACIAS_RED } from '@/lib/farmaciasRed';
+import { FARMACIA_BADRA } from '@/lib/farmaciaBadra';
 import { PasoFooter, PasoHeader } from './ui';
 import { IconCalendar, IconCheck, IconClock, IconMail, IconPhone, IconPin } from '../icons';
 import DireccionCombobox from './DireccionCombobox';
@@ -61,7 +62,7 @@ export default function Paso2Datos({
 }: {
   cotizacion: number;
   recibe: 'retiro' | 'envio';
-  retiroModo: 'red' | 'colegio' | '';
+  retiroModo: 'red' | 'colegio' | 'badra' | '';
   tarifas: TarifaEnvio[];
   leyendaEnvio: string;
   envioAdentro?: boolean;
@@ -143,6 +144,9 @@ export default function Paso2Datos({
   if (recibe === 'retiro' && retiroModo === 'red') {
     puedeAvanzar = !!farmaciaRed && celularOk(celular);
     falta = !farmaciaRed ? 'Elegí en qué Farmacia RED lo retirás' : 'Falta tu celular';
+  } else if (recibe === 'retiro' && retiroModo === 'badra') {
+    puedeAvanzar = celularOk(celular);
+    falta = 'Falta tu celular';
   } else if (recibe === 'retiro' && retiroModo === 'colegio') {
     puedeAvanzar = colegioLocalidadConfirmada && celularOk(celular);
     falta = !colegioLocalidadConfirmada ? 'Elegí una localidad de la lista' : 'Falta tu celular';
@@ -239,6 +243,56 @@ export default function Paso2Datos({
               Cuando esté listo te avisamos por WhatsApp y lo dejamos en esa farmacia a tu nombre.
             </p>
             <Celular celular={celular} setCelular={setCelular} onBlur={onBlurGuardar} />
+          </div>
+        </>
+      )}
+
+      {recibe === 'retiro' && retiroModo === 'badra' && (
+        <>
+          <h2 className="mt-5 font-sans text-[26px] font-bold text-tinta">Retirás en Nueva Farmacia Badra</h2>
+          <div className="mt-5 space-y-3">
+            <div className="rounded-[14px] bg-slate-50 p-4">
+              <p className="text-[16px] font-bold text-tinta">{FARMACIA_BADRA.nombre}</p>
+              <div className="mt-3 space-y-3">
+                <div className="flex items-start gap-2.5">
+                  <IconPin className="mt-0.5 h-5 w-5 shrink-0 text-[#2f6fbd]" />
+                  <div>
+                    <p className="text-[16px] text-tinta">{FARMACIA_BADRA.direccion}</p>
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(FARMACIA_BADRA.mapsQuery)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label="Ver en el mapa (se abre en otra pestaña)"
+                      className="link-tap text-[15px] font-medium text-[#2f6fbd] underline"
+                    >
+                      Ver en el mapa
+                    </a>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2.5">
+                  <IconClock className="mt-0.5 h-5 w-5 shrink-0 text-[#2f6fbd]" />
+                  <p className="text-[16px] text-tinta">{FARMACIA_BADRA.horario}</p>
+                </div>
+              </div>
+              <p className="mt-3 text-[15px] font-bold text-emerald-700">Retiro sin cargo</p>
+            </div>
+            <p className="text-[15px] leading-relaxed text-[#475569]">
+              Cuando esté listo te avisamos por WhatsApp y lo dejamos en esa farmacia a tu nombre.
+            </p>
+            <Celular celular={celular} setCelular={setCelular} onBlur={onBlurGuardar} />
+            <div>
+              <label className="label-paso" htmlFor="comentarios-badra">
+                Comentarios <span className="font-normal text-[#475569]">(opcional)</span>
+              </label>
+              <textarea
+                id="comentarios-badra"
+                className="input-paso"
+                rows={2}
+                value={referencias}
+                onChange={(e) => setReferencias(e.target.value)}
+                onBlur={onBlurGuardar}
+              />
+            </div>
           </div>
         </>
       )}

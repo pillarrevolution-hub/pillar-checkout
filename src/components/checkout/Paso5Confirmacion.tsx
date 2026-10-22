@@ -1,6 +1,7 @@
 import { linkWhatsApp } from '@/lib/datos';
 import { formatoPeso } from '@/lib/firma';
 import type { FarmaciaRed } from '@/lib/farmaciasRed';
+import { FARMACIA_BADRA } from '@/lib/farmaciaBadra';
 import { IconCheck } from '../icons';
 
 export default function Paso5Confirmacion({
@@ -12,6 +13,7 @@ export default function Paso5Confirmacion({
   whatsapp,
   farmaciaRedInfo,
   colegioInfo,
+  mostrarBadraInfo,
 }: {
   nombre: string;
   monto: number;
@@ -21,6 +23,7 @@ export default function Paso5Confirmacion({
   whatsapp: string | null;
   farmaciaRedInfo?: FarmaciaRed;
   colegioInfo?: { localidad: string; o: number; nombre: string };
+  mostrarBadraInfo?: boolean;
 }) {
   return (
     <>
@@ -42,6 +45,11 @@ export default function Paso5Confirmacion({
             <a href={`tel:${farmaciaRedInfo.telefonoE164}`} className="link-tap underline">
               {farmaciaRedInfo.telefono}
             </a>
+          </p>
+        )}
+        {mostrarBadraInfo && (
+          <p className="text-[13px] text-[#475569]">
+            {FARMACIA_BADRA.direccion} · {FARMACIA_BADRA.horario}
           </p>
         )}
         {colegioInfo && (

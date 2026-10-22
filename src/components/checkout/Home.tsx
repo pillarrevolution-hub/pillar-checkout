@@ -20,6 +20,11 @@ export default function Home({
   comprobanteListo: boolean;
   onEmpezar: () => void;
 }) {
+  // El "15%" tiene que ser siempre cierto (Checkout.tsx deriva `li` de
+  // `contado` con listaDerivada: li = round(contado / 0,85)) — el ahorro
+  // mostrado acá es SIEMPRE li − contado, nunca un número aparte.
+  const ahorro = li - contado;
+
   return (
     <>
       <span className="chip">Cotización personalizada</span>
@@ -38,17 +43,26 @@ export default function Home({
       )}
 
       <div className="mt-5 rounded-2xl bg-gradient-to-b from-[#0f2036] to-navy p-5 text-white">
-        <p className="text-[15px] text-slate-300">
-          Valor del tratamiento: <s className="tabular-nums text-slate-400">{formatoPeso(li)}</s>
-        </p>
-        <p className="mt-1">
-          <span className="font-sans text-[40px] font-bold tabular-nums leading-none">{formatoPeso(contado)}</span>
-        </p>
-        <p className="mt-1 text-sm text-slate-300">pagando de contado</p>
-        <span className="mt-3 inline-block rounded-full bg-[#f2c94c] px-3.5 py-1.5 text-xs font-extrabold uppercase tracking-wide text-[#1c2430]">
-          15% de descuento pagando de contado
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="text-[15px] text-slate-300">Valor del tratamiento</p>
+          <p className="font-sans text-[22px] font-bold tabular-nums text-slate-200">{formatoPeso(li)}</p>
+        </div>
+        <div className="mt-2 flex items-baseline justify-between gap-3">
+          <p className="text-[14px] text-slate-300">15% de descuento por pagar de contado</p>
+          <p className="font-sans text-[18px] font-bold tabular-nums text-[#f2c94c]">−{formatoPeso(ahorro)}</p>
+        </div>
+
+        <div className="my-4 border-t border-white/15" />
+
+        <p className="text-[15px] text-slate-300">Pagás hoy, de contado</p>
+        <p className="mt-1 font-sans text-[56px] font-bold tabular-nums leading-none">{formatoPeso(contado)}</p>
+        <span className="mt-3 inline-block rounded-full bg-[#f2c94c] px-3.5 py-1.5 text-xs font-extrabold text-[#1c2430]">
+          ✓ Ahorrás {formatoPeso(ahorro)}
         </span>
-        <p className="mt-3 text-[13px] text-slate-300">
+
+        <div className="my-4 border-t border-white/15" />
+
+        <p className="text-[13px] text-slate-300">
           o 3 cuotas sin interés de <span className="tabular-nums">{formatoPeso(cuotaSinEnvio)}</span>
         </p>
       </div>
