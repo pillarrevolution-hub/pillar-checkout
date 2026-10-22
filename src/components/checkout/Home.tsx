@@ -44,23 +44,30 @@ export default function Home({
 
       <div className="mt-5 rounded-2xl bg-gradient-to-b from-[#0f2036] to-navy p-5 text-white">
         <div className="flex items-baseline justify-between gap-3">
-          <p className="text-[15px] text-slate-300">Valor del tratamiento</p>
-          <p className="font-sans text-[22px] font-bold tabular-nums text-slate-200">{formatoPeso(li)}</p>
+          <p className="min-w-0 text-[17px] text-[#dbe3ee]">Valor del tratamiento</p>
+          <p className="whitespace-nowrap font-sans text-[22px] font-bold tabular-nums text-slate-200">{formatoPeso(li)}</p>
         </div>
         <div className="mt-2 flex items-baseline justify-between gap-3">
-          <p className="text-[14px] text-slate-300">15% de descuento por pagar de contado</p>
-          <p className="font-sans text-[18px] font-bold tabular-nums text-[#f2c94c]">−{formatoPeso(ahorro)}</p>
+          <p className="min-w-0 text-[17px] font-semibold text-[#eecb5f]">15% de descuento por pagar de contado</p>
+          <p className="shrink-0 whitespace-nowrap font-sans text-[17px] font-semibold tabular-nums text-[#eecb5f]">
+            −{formatoPeso(ahorro)}
+          </p>
         </div>
 
-        <div className="my-4 border-t border-white/15" />
+        <div className="my-4 border-t" style={{ borderColor: 'rgba(255,255,255,0.22)' }} />
 
-        <p className="text-[15px] text-slate-300">Pagás hoy, de contado</p>
-        <p className="mt-1 font-sans text-[56px] font-bold tabular-nums leading-none">{formatoPeso(contado)}</p>
-        <span className="mt-3 inline-block rounded-full bg-[#f2c94c] px-3.5 py-1.5 text-xs font-extrabold text-[#1c2430]">
+        <p className="text-[16px] text-[#c3cddb]">Pagás hoy, de contado</p>
+        <p className="mt-1 font-sans text-[56px] font-extrabold tabular-nums leading-[1.05] tracking-[-0.02em]">
+          {formatoPeso(contado)}
+        </p>
+        <span
+          className="mt-3 inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-extrabold text-[#eecb5f]"
+          style={{ borderColor: 'rgba(238,203,95,0.55)', backgroundColor: 'rgba(238,203,95,0.14)' }}
+        >
           ✓ Ahorrás {formatoPeso(ahorro)}
         </span>
 
-        <div className="my-4 border-t border-white/15" />
+        <div className="my-4 border-t" style={{ borderColor: 'rgba(255,255,255,0.14)' }} />
 
         <p className="text-[13px] text-slate-300">
           o 3 cuotas sin interés de <span className="tabular-nums">{formatoPeso(cuotaSinEnvio)}</span>
