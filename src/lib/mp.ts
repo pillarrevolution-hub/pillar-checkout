@@ -15,6 +15,22 @@ export function baseUrl(): string {
   return 'http://localhost:3000';
 }
 
+export type PaymentMethods = {
+  installments: number;
+  default_installments: number;
+  excluded_payment_types?: { id: string }[];
+};
+
+// Contado (1 cuota) lleva el 15% de descuento: solo vale para dinero en
+// cuenta/débito, así que excluimos tarjeta de crédito. En 3 cuotas no hay
+// descuento y crédito queda habilitado como siempre.
+export function paymentMethodsPara(cuotas: number): PaymentMethods {
+  if (cuotas === 1) {
+    return { installments: 1, default_installments: 1, excluded_payment_types: [{ id: 'credit_card' }] };
+  }
+  return { installments: cuotas, default_installments: cuotas };
+}
+
 // Checkout Pro: se crea una "preferencia" y se redirige al init_point.
 export async function crearPreferencia(args: {
   cotizacion: number;
@@ -55,10 +71,7 @@ export async function crearPreferencia(args: {
       ],
       // Con esto el webhook sabe QUÉ cotización se pagó y cómo.
       external_reference: `${args.cotizacion}|${args.envio}|${args.tipo}`,
-      payment_methods: {
-        installments: args.cuotas,
-        default_installments: args.cuotas,
-      },
+      payment_methods: paymentMethodsPara(args.cuotas),
       back_urls: {
         success: `${base}/gracias`,
         pending: `${base}/gracias?pendiente=1`,
