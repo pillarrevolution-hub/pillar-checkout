@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 import type { TarifaEnvio } from './envios';
+import { listaDesdeContado } from './precios.ts';
 
 // ---------------------------------------------------------------
 // Link firmado del checkout PILL.AR.
@@ -70,7 +71,7 @@ export function montoEnvio(eleccion: EleccionEnvio): number {
 // deriva del precio de contado, nunca se usa el `li` que manda Malvinas
 // (queda en el payload solo para loguear si difiere mucho).
 export function listaDerivada(p: Pick<PayloadCheckout, 'tr'>): number {
-  return Math.round(p.tr / 0.85);
+  return listaDesdeContado(p.tr);
 }
 
 // contado (transferencia o MP un pago) parte del precio tr; cuotas de la

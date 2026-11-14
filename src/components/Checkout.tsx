@@ -8,6 +8,7 @@ import {
   type EleccionEnvio,
   type PayloadCheckout,
 } from '@/lib/firma';
+import { cuotaDeLista } from '@/lib/precios';
 import { buscarTarifa, tituloLocalidad } from '@/lib/envios';
 import { descripcionRecibo, mensajeConfirmacion, reciboMostrado, type ReciboElegido } from '@/lib/mensajes';
 import { FARMACIAS_RED } from '@/lib/farmaciasRed';
@@ -304,15 +305,15 @@ export default function Checkout({
     // li que manda Malvinas, esto es solo diagnóstico.
     console.warn(`Checkout: li de Malvinas (${payload.li}) difiere de la lista derivada (${li})`);
   }
-  const t = useMemo(
-    () => ({
+  const t = useMemo(() => {
+    const cuotas = total(payload, eleccion, 'cuotas');
+    return {
       contado: total(payload, eleccion, 'contado'),
-      cuotas: total(payload, eleccion, 'cuotas'),
-      cuota: Math.round((li + montoEnvio(eleccion)) / 3),
+      cuotas,
+      cuota: cuotaDeLista(cuotas),
       envio: montoEnvio(eleccion),
-    }),
-    [payload, eleccion, li]
-  );
+    };
+  }, [payload, eleccion, li]);
 
   const direccionEnvioCompleta = useMemo(() => {
     if (recibe !== 'envio') return '';
@@ -543,7 +544,7 @@ export default function Checkout({
         nombre={payload.n}
         li={li}
         contado={payload.tr}
-        cuotaSinEnvio={Math.round(li / 3)}
+        cuotaSinEnvio={cuotaDeLista(li)}
         whatsapp={whatsapp}
         comprobanteRecibido={comprobanteRecibido}
         comprobanteListo={comprobanteListo}
@@ -709,6 +710,7 @@ export default function Checkout({
         cotizacion={payload.o}
         pago={pago}
         monto={pago === 'cuotas' ? t.cuotas : t.contado}
+        cuota={t.cuota}
         comprobanteRecibido={comprobanteRecibido && !comprobanteListo}
         subiendo={subiendo}
         errorComprobante={errorComprobante}

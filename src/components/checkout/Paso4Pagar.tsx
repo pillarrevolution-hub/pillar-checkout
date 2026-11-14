@@ -12,6 +12,7 @@ export default function Paso4Pagar({
   cotizacion,
   pago,
   monto,
+  cuota,
   comprobanteRecibido,
   subiendo,
   errorComprobante,
@@ -26,6 +27,10 @@ export default function Paso4Pagar({
   cotizacion: number;
   pago: Pago;
   monto: number;
+  // Total a pagar en 3 cuotas (= monto cuando pago === 'cuotas'), ya
+  // dividido por 3 — misma fuente que la Home (cuotaDeLista en
+  // src/lib/precios.ts).
+  cuota: number;
   comprobanteRecibido?: boolean;
   subiendo: boolean;
   errorComprobante: string;
@@ -143,9 +148,21 @@ export default function Paso4Pagar({
         </>
       ) : (
         <>
-          <h2 className="font-sans text-[26px] font-bold tabular-nums text-tinta">
-            Vas a pagar {formatoPeso(monto)} con Mercado Pago
-          </h2>
+          {pago === 'cuotas' ? (
+            <h2 className="font-sans text-[26px] font-bold tabular-nums text-tinta">
+              Vas a pagar 3 cuotas de {formatoPeso(cuota)} con Mercado Pago
+              <br className="sm:hidden" /> · Total {formatoPeso(monto)}
+            </h2>
+          ) : (
+            <>
+              <h2 className="font-sans text-[26px] font-bold tabular-nums text-tinta">
+                Vas a pagar {formatoPeso(monto)} con Mercado Pago
+              </h2>
+              <p className="mt-1 text-[14px] text-[#475569]">
+                El 15% de descuento aplica pagando con dinero en cuenta o tarjeta de débito.
+              </p>
+            </>
+          )}
           {resumen && resumen.length > 0 && (
             <div className="mt-4 rounded-xl bg-[#f1f5fa] p-4 text-[14px] leading-relaxed text-[#475569]">
               {resumen.map((linea) => (
