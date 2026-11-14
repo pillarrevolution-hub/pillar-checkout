@@ -442,12 +442,12 @@ export default function Paso1Recibir({
                         <div>
                           <p className="text-[18px] font-bold text-tinta">
                             {fechaColegioTexto
-                              ? `Tu pedido llega a una farmacia de tu localidad el ${fechaColegioTexto}.`
-                              : 'Te confirmamos por WhatsApp el día que llega a tu localidad.'}
+                              ? `Llega a la farmacia de tu localidad el ${fechaColegioTexto}; podrás retirar tu pedido una vez elaborado.`
+                              : 'Te confirmamos la fecha de llegada por WhatsApp.'}
                           </p>
                           <p className="mt-1 text-[15px] text-[#475569]">
-                            Lo lleva el Colegio de Farmacéuticos con su reparto quincenal. Ese día te
-                            avisamos por WhatsApp en qué farmacia retirarlo.
+                            Lo lleva el Colegio de Farmacéuticos con su reparto quincenal. Unos días
+                            antes te avisamos por WhatsApp en qué farmacia retirarlo.
                           </p>
                         </div>
                       </div>

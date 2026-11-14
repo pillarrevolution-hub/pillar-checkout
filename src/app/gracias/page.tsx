@@ -95,7 +95,7 @@ export default async function Gracias({
           )}
           {colegioInfo && (
             <p className="text-[13px] text-[#475569]">
-              Colegio de Farmacéuticos · Ese día te avisamos por WhatsApp en qué farmacia de{' '}
+              Colegio de Farmacéuticos · Unos días antes te avisamos por WhatsApp en qué farmacia de{' '}
               {colegioInfo.localidad} retirarlo.
               {numero && (
                 <>

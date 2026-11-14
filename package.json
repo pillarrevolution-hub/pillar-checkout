@@ -20,7 +20,8 @@
     "stub:malvinas": "node scripts/stub-malvinas.mjs",
     "test:paso4-textos": "playwright test tests/paso4-textos.spec.ts",
     "test:celular-e2e": "playwright test tests/celular.spec.ts",
-    "test:c2-modalidad": "playwright test tests/c2-modalidad.spec.ts"
+    "test:c2-modalidad": "playwright test tests/c2-modalidad.spec.ts",
+    "test:c3-colegio": "playwright test tests/c3-colegio.spec.ts"
   },
   "dependencies": {
     "next": "^14.2.15",
