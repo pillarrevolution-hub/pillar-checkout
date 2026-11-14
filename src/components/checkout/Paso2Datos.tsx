@@ -1,6 +1,7 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { linkWhatsApp } from '@/lib/datos';
 import { formatoPeso } from '@/lib/firma';
+import { validarCelular, formatoCelular, CELULAR_ERROR } from '@/lib/celular';
 import {
   buscarTarifa,
   matchExactoLocalidad,
@@ -15,8 +16,6 @@ import { FARMACIA_BADRA } from '@/lib/farmaciaBadra';
 import { PasoFooter, PasoHeader } from './ui';
 import { IconCalendar, IconCheck, IconClock, IconMail, IconPhone, IconPin } from '../icons';
 import DireccionCombobox from './DireccionCombobox';
-
-const celularOk = (v: string) => v.replace(/\D/g, '').length >= 6;
 
 export default function Paso2Datos({
   cotizacion,
@@ -55,6 +54,7 @@ export default function Paso2Datos({
   setReferencias,
   celular,
   setCelular,
+  celularDeMalvinas,
   onBlurGuardar,
   onIrARetiro,
   onSiguiente,
@@ -96,6 +96,9 @@ export default function Paso2Datos({
   setReferencias: (v: string) => void;
   celular: string;
   setCelular: (v: string) => void;
+  // Si Malvinas ya tiene el celular cargado (ficha del paciente), no se
+  // vuelve a pedir: línea de solo lectura con opción de cambiarlo.
+  celularDeMalvinas?: string;
   onBlurGuardar: () => void;
   onIrARetiro: () => void;
   onSiguiente: () => void;
@@ -110,6 +113,12 @@ export default function Paso2Datos({
     [recibe, envioLocalidadTexto, tarifas]
   );
   const noEncontrada = recibe === 'envio' && envioLocalidadTexto.trim().length >= 3 && !tarifaEncontrada;
+
+  const celularOk = validarCelular(celular).ok;
+  // Error recién a partir de 6 dígitos tipeados — antes de eso está
+  // simplemente incompleto, no hace falta marcarlo como inválido.
+  const celularError =
+    !celularOk && celular.replace(/\D/g, '').length >= 6 ? CELULAR_ERROR : undefined;
 
   // Localidad del Colegio restringida a Córdoba (pedido de Tomi): si
   // `localidades` viene vacío (link viejo o Malvinas caído) no bloqueamos
@@ -142,16 +151,16 @@ export default function Paso2Datos({
   let puedeAvanzar = false;
   let falta = '';
   if (recibe === 'retiro' && retiroModo === 'red') {
-    puedeAvanzar = !!farmaciaRed && celularOk(celular);
+    puedeAvanzar = !!farmaciaRed && celularOk;
     falta = !farmaciaRed ? 'Elegí en qué Farmacia RED lo retirás' : 'Falta tu celular';
   } else if (recibe === 'retiro' && retiroModo === 'badra') {
-    puedeAvanzar = celularOk(celular);
+    puedeAvanzar = celularOk;
     falta = 'Falta tu celular';
   } else if (recibe === 'retiro' && retiroModo === 'colegio') {
-    puedeAvanzar = colegioLocalidadConfirmada && celularOk(celular);
+    puedeAvanzar = colegioLocalidadConfirmada && celularOk;
     falta = !colegioLocalidadConfirmada ? 'Elegí una localidad de la lista' : 'Falta tu celular';
   } else if (recibe === 'envio') {
-    puedeAvanzar = !!tarifaEncontrada && calle.trim().length >= 4 && celularOk(celular) && !noEncontrada;
+    puedeAvanzar = !!tarifaEncontrada && calle.trim().length >= 4 && celularOk && !noEncontrada;
     falta = !envioLocalidadTexto.trim()
       ? 'Falta la localidad de envío'
       : !tarifaEncontrada
@@ -242,7 +251,7 @@ export default function Paso2Datos({
             <p className="text-[15px] leading-relaxed text-[#475569]">
               Cuando esté listo te avisamos por WhatsApp y lo dejamos en esa farmacia a tu nombre.
             </p>
-            <Celular celular={celular} setCelular={setCelular} onBlur={onBlurGuardar} />
+            <CelularCampo celular={celular} setCelular={setCelular} onBlur={onBlurGuardar} celularDeMalvinas={celularDeMalvinas} error={celularError} />
           </div>
         </>
       )}
@@ -279,7 +288,7 @@ export default function Paso2Datos({
             <p className="text-[15px] leading-relaxed text-[#475569]">
               Cuando esté listo te avisamos por WhatsApp y lo dejamos en esa farmacia a tu nombre.
             </p>
-            <Celular celular={celular} setCelular={setCelular} onBlur={onBlurGuardar} />
+            <CelularCampo celular={celular} setCelular={setCelular} onBlur={onBlurGuardar} celularDeMalvinas={celularDeMalvinas} error={celularError} />
             <div>
               <label className="label-paso" htmlFor="comentarios-badra">
                 Comentarios <span className="font-normal text-[#475569]">(opcional)</span>
@@ -387,7 +396,7 @@ export default function Paso2Datos({
               )
             )}
 
-            <Celular celular={celular} setCelular={setCelular} onBlur={onBlurGuardar} />
+            <CelularCampo celular={celular} setCelular={setCelular} onBlur={onBlurGuardar} celularDeMalvinas={celularDeMalvinas} error={celularError} />
           </div>
         </>
       )}
@@ -562,7 +571,7 @@ export default function Paso2Datos({
                 onBlur={onBlurGuardar}
               />
             </div>
-            <Celular celular={celular} setCelular={setCelular} onBlur={onBlurGuardar} />
+            <CelularCampo celular={celular} setCelular={setCelular} onBlur={onBlurGuardar} celularDeMalvinas={celularDeMalvinas} error={celularError} />
           </div>
         </>
       )}
@@ -581,15 +590,37 @@ export default function Paso2Datos({
   );
 }
 
-function Celular({
+function CelularCampo({
   celular,
   setCelular,
   onBlur,
+  celularDeMalvinas,
+  error,
 }: {
   celular: string;
   setCelular: (v: string) => void;
   onBlur: () => void;
+  celularDeMalvinas?: string;
+  error?: string;
 }) {
+  const [editar, setEditar] = useState(false);
+
+  if (celularDeMalvinas && !editar) {
+    const normalizado = validarCelular(celularDeMalvinas).normalizado;
+    return (
+      <p className="text-[15px] text-tinta">
+        Te avisamos al {normalizado ? formatoCelular(normalizado) : celularDeMalvinas} ·{' '}
+        <button
+          type="button"
+          className="font-semibold text-[#2f6fbd] underline"
+          onClick={() => setEditar(true)}
+        >
+          ¿No es tu número? Cambiarlo
+        </button>
+      </p>
+    );
+  }
+
   return (
     <div>
       <label className="label-paso" htmlFor="celular">
@@ -604,6 +635,11 @@ function Celular({
         onChange={(e) => setCelular(e.target.value)}
         onBlur={onBlur}
       />
+      {error && (
+        <p className="mt-1.5 text-[13px] font-medium text-red-600" role="alert">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

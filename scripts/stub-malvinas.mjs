@@ -12,7 +12,7 @@ const PORT = Number(process.env.STUB_PORT || 3000);
 // Cotización ZZZ de prueba — contado $70.822 (sin envío: sin `envios`,
 // la opción "Envío a domicilio" queda deshabilitada y el checkout solo
 // ofrece retiro).
-const COTIZACION = {
+const COTIZACION_164 = {
   v: 1,
   o: 164,
   n: 'ZZZ Prueba Claude',
@@ -21,6 +21,17 @@ const COTIZACION = {
   pagada: false,
   comprobanteRecibido: false,
 };
+
+// Misma cotización, pero con el celular YA cargado en la ficha del
+// paciente (A3, 14-nov) — para probar que el Paso 2 no vuelve a
+// pedirlo y muestra la línea de solo lectura.
+const COTIZACION_165 = {
+  ...COTIZACION_164,
+  o: 165,
+  paciente: { celular: '3512501234' },
+};
+
+const COTIZACIONES = { 164: COTIZACION_164, 165: COTIZACION_165 };
 
 function leerBody(req) {
   return new Promise((resolve) => {
@@ -34,9 +45,16 @@ const server = createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   res.setHeader('Content-Type', 'application/json');
 
-  if (req.method === 'GET' && /^\/api\/cotizaciones\/\d+\/checkout-data$/.test(url.pathname)) {
+  const matchCheckoutData = url.pathname.match(/^\/api\/cotizaciones\/(\d+)\/checkout-data$/);
+  if (req.method === 'GET' && matchCheckoutData) {
+    const cotizacion = COTIZACIONES[matchCheckoutData[1]];
+    if (!cotizacion) {
+      res.writeHead(404);
+      res.end(JSON.stringify({ error: 'cotización de prueba inexistente en el stub' }));
+      return;
+    }
     res.writeHead(200);
-    res.end(JSON.stringify(COTIZACION));
+    res.end(JSON.stringify(cotizacion));
     return;
   }
 
@@ -59,5 +77,5 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`stub-malvinas: escuchando en :${PORT} (cotización de prueba o=${COTIZACION.o})`);
+  console.log(`stub-malvinas: escuchando en :${PORT} (cotizaciones de prueba o=164,165)`);
 });

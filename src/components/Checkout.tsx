@@ -6,8 +6,8 @@ import {
   montoEnvio,
   total,
   type EleccionEnvio,
-  type PayloadCheckout,
 } from '@/lib/firma';
+import type { DatosCheckout } from '@/lib/datos';
 import { cuotaDeLista } from '@/lib/precios';
 import { buscarTarifa, tituloLocalidad } from '@/lib/envios';
 import { descripcionRecibo, mensajeConfirmacion, reciboMostrado, type ReciboElegido } from '@/lib/mensajes';
@@ -137,7 +137,7 @@ export default function Checkout({
   comprobanteRecibido = false,
   hoy,
 }: {
-  payload: PayloadCheckout;
+  payload: DatosCheckout;
   fuente: { c: string; t: string } | { p: string; t: string };
   whatsapp: string | null;
   comprobanteRecibido?: boolean;
@@ -266,6 +266,7 @@ export default function Checkout({
   useLayoutEffect(() => {
     const draft = cargarDraft(payload.o);
     if (draft) dispatch({ type: 'restaurar', estado: draft });
+    else if (payload.paciente?.celular) dispatch({ type: 'campo', campo: 'celular', valor: payload.paciente.celular });
     // Se preserva el resto de history.state (Next.js guarda ahí sus
     // propios internals de router, __NA entre otros) y solo se pisa la
     // clave `paso`: reemplazar el objeto entero deja a Next sin sus datos
@@ -587,6 +588,7 @@ export default function Checkout({
         leyendaEnvio={payload.envios?.leyenda ?? ''}
         envioAdentro={payload.envioAdentro}
         localidades={localidades}
+        celularDeMalvinas={payload.paciente?.celular}
         whatsapp={whatsapp}
         errorContacto={errorContacto}
         onReintentarContacto={guardarContacto}

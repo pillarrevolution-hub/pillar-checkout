@@ -12,12 +12,14 @@
     "test:badra": "node --test src/lib/__tests__/badra.test.ts",
     "test:mp": "node --test src/lib/mp.test.ts",
     "test:precios": "node --test src/lib/__tests__/precios.test.ts",
-    "test": "node --test src/lib/__tests__/colegioFechas.test.ts src/lib/__tests__/envios.test.ts src/lib/__tests__/direcciones.test.ts src/lib/__tests__/direccionesApi.test.ts src/lib/__tests__/badra.test.ts src/lib/__tests__/precios.test.ts src/lib/mp.test.ts",
+    "test:celular": "node --test src/lib/__tests__/celular.test.ts",
+    "test": "node --test src/lib/__tests__/colegioFechas.test.ts src/lib/__tests__/envios.test.ts src/lib/__tests__/direcciones.test.ts src/lib/__tests__/direccionesApi.test.ts src/lib/__tests__/badra.test.ts src/lib/__tests__/precios.test.ts src/lib/__tests__/celular.test.ts src/lib/mp.test.ts",
     "test:no-reload": "playwright test",
     "test:direccion-estable": "playwright test tests/direccion-estable.spec.ts",
     "test:certificacion": "playwright test tests/certificacion-parpadeo.spec.ts tests/certificacion-refresh.spec.ts",
     "stub:malvinas": "node scripts/stub-malvinas.mjs",
-    "test:paso4-textos": "playwright test tests/paso4-textos.spec.ts"
+    "test:paso4-textos": "playwright test tests/paso4-textos.spec.ts",
+    "test:celular-e2e": "playwright test tests/celular.spec.ts"
   },
   "dependencies": {
     "next": "^14.2.15",
