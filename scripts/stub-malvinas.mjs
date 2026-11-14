@@ -31,7 +31,24 @@ const COTIZACION_165 = {
   paciente: { celular: '3512501234' },
 };
 
-const COTIZACIONES = { 164: COTIZACION_164, 165: COTIZACION_165 };
+// Con envíos (C2, 14-nov): tarifario mínimo para poder probar el camino
+// "Envío a domicilio" del acordeón del Paso 1 (164/165 no tienen
+// `envios`, así que esa opción queda deshabilitada para ellas a propósito).
+const COTIZACION_166 = {
+  ...COTIZACION_164,
+  o: 166,
+  envios: {
+    recargo: 1000,
+    leyenda: 'Envío a domicilio por un tercero por cuenta y orden del paciente.',
+    tarifas: [
+      { l: 'ALTA GRACIA', p: 'Córdoba', m: 13500, t: '24 hs' },
+      { l: 'CORDOBA', p: 'Córdoba', m: 9000, t: '24 hs' },
+    ],
+  },
+  localidades: ['Alta Gracia', 'Córdoba'],
+};
+
+const COTIZACIONES = { 164: COTIZACION_164, 165: COTIZACION_165, 166: COTIZACION_166 };
 
 function leerBody(req) {
   return new Promise((resolve) => {

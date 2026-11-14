@@ -16,7 +16,6 @@ import { RETIRO_LUGAR_BADRA } from '@/lib/farmaciaBadra';
 import { proximoRepartoColegio, fechaRepartoTexto } from '@/lib/colegioFechas';
 import Home from './checkout/Home';
 import Paso1Recibir from './checkout/Paso1Recibir';
-import Paso2Datos from './checkout/Paso2Datos';
 import Paso3Pago, { type Pago } from './checkout/Paso3Pago';
 import Paso4Pagar from './checkout/Paso4Pagar';
 import Paso5Confirmacion from './checkout/Paso5Confirmacion';
@@ -33,7 +32,12 @@ import Paso5Confirmacion from './checkout/Paso5Confirmacion';
 // pestaña).
 // ---------------------------------------------------------------
 
-type Paso = 0 | 1 | 2 | 3 | 4 | 5;
+// C2 (14-nov): bajó de 6 a 5 pantallas — el viejo Paso 2 ("Datos", los
+// campos propios de cada modalidad) se fusionó con el Paso 1 (acordeón)
+// y con "¿Cómo querés pagar?" (celular + comentarios). Flujo numerado
+// (PasoHeader, "de 3"): 1 Recibir → 2 Pago → 3 Pagar; 0 Home y 4
+// Confirmación quedan sin número visible, como antes.
+type Paso = 0 | 1 | 2 | 3 | 4;
 type Recibe = 'retiro' | 'envio' | null;
 type RetiroModo = 'red' | 'colegio' | 'badra' | '';
 
@@ -91,7 +95,13 @@ type Accion =
   // {localidadGoogle}", que cambia la localidad SIN tocar la dirección
   // (la dirección seguía siendo la correcta, solo estaba mal
   // etiquetada).
-  | { type: 'cambiarLocalidadEnvio'; valor: string };
+  | { type: 'cambiarLocalidadEnvio'; valor: string }
+  // C2 (14-nov): elegir la modalidad (o la sub-modalidad de retiro) limpia
+  // los datos de la que se deja — nunca quedan "fantasmas" en el estado
+  // ni en el borrador (ej.: elegir envío con dirección cargada y después
+  // volver a RED no debe dejar esa dirección dando vueltas).
+  | { type: 'elegirRecibe'; valor: 'retiro' | 'envio' }
+  | { type: 'elegirRetiroModo'; valor: 'red' | 'colegio' | 'badra' };
 
 function reducerPaso(estado: Estado, accion: Accion): Estado {
   switch (accion.type) {
@@ -109,6 +119,24 @@ function reducerPaso(estado: Estado, accion: Accion): Estado {
         ...(huboDireccion ? { calle: '', direccionVerificada: false, direccionConfirmadaTexto: '' } : {}),
       };
     }
+    case 'elegirRecibe':
+      return accion.valor === 'envio'
+        ? { ...estado, recibe: 'envio', retiroModo: '', farmaciaRed: '', colegioLocalidad: '' }
+        : {
+            ...estado,
+            recibe: 'retiro',
+            envioLocalidadTexto: '',
+            calle: '',
+            direccionVerificada: false,
+            direccionConfirmadaTexto: '',
+          };
+    case 'elegirRetiroModo':
+      return {
+        ...estado,
+        retiroModo: accion.valor,
+        farmaciaRed: accion.valor === 'red' ? estado.farmaciaRed : '',
+        colegioLocalidad: accion.valor === 'colegio' ? estado.colegioLocalidad : '',
+      };
     default:
       return estado;
   }
@@ -228,12 +256,6 @@ export default function Checkout({
   const [cargandoMP, setCargandoMP] = useState(false);
   const [errorMP, setErrorMP] = useState('');
   const [errorContacto, setErrorContacto] = useState(false);
-  // Aviso no persistente (no va al draft de sessionStorage): cuando un
-  // botón de escape del paso 2 (Colegio bloqueado) manda de vuelta al
-  // paso 1 con una opción ya preseleccionada, esto evita que el cambio
-  // pase en silencio — se limpia apenas el paciente vuelve a tocar una
-  // opción a mano.
-  const [avisoCambioRecibe, setAvisoCambioRecibe] = useState<'' | 'envio' | 'red'>('');
 
   const ultimoContacto = useRef('');
 
@@ -347,15 +369,22 @@ export default function Checkout({
   const repartoColegio = useMemo(() => proximoRepartoColegio(new Date(hoy)), [hoy]);
   const fechaColegioTexto = repartoColegio ? fechaRepartoTexto(repartoColegio) : null;
 
+  // C2 (14-nov): "Comentarios" es un solo campo genérico para las 4
+  // modalidades (antes solo Envío y Badra lo guardaban en algún lado —
+  // RED y Colegio lo perdían en silencio porque ni se los mostraba).
+  // Viaja en `direccionEnvio` de la cotización, el mismo campo que ya
+  // usa Seguimiento para mostrar "Dirección de envío" (columna genérica,
+  // ya se usaba para notas que no son una dirección — p. ej. "Llega por
+  // Colegio: …" — confirmado leyendo contacto-externa/Seguimiento.tsx en
+  // el repo padre; no hizo falta tocar nada ahí).
+  const comentario = referencias.trim();
   const direccionParaGuardar =
     recibe === 'envio'
-      ? direccionEnvioCompleta
-      : recibe === 'retiro' && retiroModo === 'colegio' && fechaColegioTexto
-        ? `Llega por Colegio: ${fechaColegioTexto}`
-        // Badra no pide dirección (el local es fijo): los "comentarios"
-        // opcionales viajan en el mismo campo que usa el resto del Paso 2.
-        : recibe === 'retiro' && retiroModo === 'badra'
-          ? referencias.trim()
+      ? direccionEnvioCompleta // ya incluye el comentario (ver más abajo)
+      : recibe === 'retiro' && retiroModo === 'colegio'
+        ? [fechaColegioTexto ? `Llega por Colegio: ${fechaColegioTexto}` : '', comentario].filter(Boolean).join(' — ')
+        : recibe === 'retiro' && (retiroModo === 'badra' || retiroModo === 'red')
+          ? comentario
           : '';
 
   // Guarda contacto/elección en Malvinas. Si falla, NO marca la clave como
@@ -422,10 +451,11 @@ export default function Checkout({
   // restaurar la página desde bfcache tal cual quedó (cargandoMP: true
   // congelado para siempre, porque el fetch que lo iba a apagar ya
   // corrió antes de irte). Estos dos efectos cubren las dos formas de
-  // "volver": salir del paso 4 adentro de la SPA (Volver / atrás cambia
-  // el paso) y volver desde afuera vía bfcache (pageshow persisted).
+  // "volver": salir del paso de Pagar adentro de la SPA (Volver / atrás
+  // cambia el paso) y volver desde afuera vía bfcache (pageshow
+  // persisted).
   useEffect(() => {
-    if (paso !== 4) return;
+    if (paso !== 3) return;
     return () => {
       setCargandoMP(false);
       setErrorMP('');
@@ -484,7 +514,7 @@ export default function Checkout({
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error ?? 'No pudimos subir el comprobante — probá de nuevo');
       setComprobanteListo(true);
-      irA(5);
+      irA(4);
     } catch (e: any) {
       setErrorComprobante(e.message ?? 'No pudimos subir el comprobante — probá de nuevo');
     } finally {
@@ -531,12 +561,10 @@ export default function Checkout({
     return <div className="tarjeta" style={{ minHeight: 520, background: '#edf2f8' }} />;
   }
 
-  // Shell único (tarjeta blanca + piso de alto) para las 6 pantallas del
-  // wizard: antes cada PasoN traía su propio wrapper .tarjeta, con
-  // min-height inconsistente (Paso1/2/3 lo fijaban, Home/Paso4/Paso5 no)
-  // — eso hacía saltar el alto de la tarjeta en cada transición. Ahora
-  // cada PasoN devuelve solo su contenido y el alto se fija acá, una
-  // sola vez, parejo para los 6.
+  // Shell único (tarjeta blanca + piso de alto) para las 5 pantallas del
+  // wizard (C2, 14-nov: bajaron de 6 a 5 al fusionar el viejo Paso 2 con
+  // el 1 y el 3) — cada PasoN devuelve solo su contenido y el alto se
+  // fija acá, una sola vez, parejo para las 5.
   let contenido: React.ReactNode = null;
 
   if (paso === 0) {
@@ -562,53 +590,17 @@ export default function Checkout({
         whatsapp={whatsapp}
         errorContacto={errorContacto}
         onReintentarContacto={guardarContacto}
-        avisoCambio={avisoCambioRecibe}
-        onElegirRecibe={(r) => {
-          setAvisoCambioRecibe('');
-          campo('recibe', r);
-        }}
-        onElegirRetiroModo={(m) => {
-          setAvisoCambioRecibe('');
-          campo('retiroModo', m);
-        }}
-        onSiguiente={() => {
-          guardarContacto();
-          irA(2);
-        }}
-        onVolver={volver}
-      />
-    );
-  } else if (paso === 2 && recibe) {
-    contenido = (
-      <Paso2Datos
-        cotizacion={payload.o}
-        recibe={recibe}
-        retiroModo={retiroModo}
+        onElegirRecibe={(r) => dispatch({ type: 'elegirRecibe', valor: r })}
+        onElegirRetiroModo={(m) => dispatch({ type: 'elegirRetiroModo', valor: m })}
         tarifas={tarifas}
         leyendaEnvio={payload.envios?.leyenda ?? ''}
         envioAdentro={payload.envioAdentro}
         localidades={localidades}
-        celularDeMalvinas={payload.paciente?.celular}
-        whatsapp={whatsapp}
-        errorContacto={errorContacto}
-        onReintentarContacto={guardarContacto}
         farmaciaRed={farmaciaRed}
         setFarmaciaRed={(v) => campo('farmaciaRed', v)}
         colegioLocalidad={colegioLocalidad}
         setColegioLocalidad={(v) => campo('colegioLocalidad', v)}
         fechaColegioTexto={fechaColegioTexto}
-        onCambiarAEnvio={() => {
-          campo('recibe', 'envio');
-          campo('retiroModo', '');
-          setAvisoCambioRecibe('envio');
-          irA(1);
-        }}
-        onCambiarARed={() => {
-          campo('recibe', 'retiro');
-          campo('retiroModo', 'red');
-          setAvisoCambioRecibe('red');
-          irA(1);
-        }}
         envioLocalidadTexto={envioLocalidadTexto}
         setEnvioLocalidadTexto={cambiarLocalidadEnvio}
         avisoLocalidadCambiada={avisoLocalidadCambiada}
@@ -623,23 +615,10 @@ export default function Checkout({
         setDireccionConfirmadaTexto={(v) => campo('direccionConfirmadaTexto', v)}
         onUsarLocalidadGoogle={usarLocalidadGoogle}
         avisoPrecioActualizado={avisoPrecioActualizado}
-        piso={piso}
-        setPiso={(v) => campo('piso', v)}
-        cp={cp}
-        setCp={(v) => campo('cp', v)}
-        referencias={referencias}
-        setReferencias={(v) => campo('referencias', v)}
-        celular={celular}
-        setCelular={(v) => campo('celular', v)}
         onBlurGuardar={guardarContacto}
-        onIrARetiro={() => {
-          campo('recibe', 'retiro');
-          campo('retiroModo', '');
-          irA(1);
-        }}
         onSiguiente={() => {
           guardarContacto();
-          irA(3);
+          irA(2);
         }}
         onVolver={volver}
       />
@@ -681,7 +660,7 @@ export default function Checkout({
   }
   if (celular.trim()) resumenPaso4.push(`Te avisamos al ${celular.trim()}`);
 
-  if (paso === 3) {
+  if (paso === 2 && recibe) {
     const barraTexto =
       recibe === 'retiro'
         ? 'Tratamiento (retiro sin cargo)'
@@ -691,22 +670,32 @@ export default function Checkout({
     contenido = (
       <Paso3Pago
         cotizacion={payload.o}
+        recibe={recibe}
         barraTexto={barraTexto}
         totalMostrado={pago === 'cuotas' ? t.cuotas : t.contado}
         contado={t.contado}
         cuota={t.cuota}
         pago={pago}
         onElegirPago={(p) => campo('pago', p)}
+        celular={celular}
+        setCelular={(v) => campo('celular', v)}
+        celularDeMalvinas={payload.paciente?.celular}
+        referencias={referencias}
+        setReferencias={(v) => campo('referencias', v)}
+        onBlurGuardar={guardarContacto}
         whatsapp={whatsapp}
         errorContacto={errorContacto}
         onReintentarContacto={guardarContacto}
-        onSiguiente={() => irA(4)}
+        onSiguiente={() => {
+          guardarContacto();
+          irA(3);
+        }}
         onVolver={volver}
       />
     );
   }
 
-  if (paso === 4) {
+  if (paso === 3) {
     contenido = (
       <Paso4Pagar
         cotizacion={payload.o}
@@ -727,7 +716,7 @@ export default function Checkout({
     );
   }
 
-  if (paso === 5) {
+  if (paso === 4) {
     const mensaje = mensajeConfirmacion({
       nombre: payload.n,
       o: payload.o,
@@ -759,7 +748,7 @@ export default function Checkout({
   }
 
   return (
-    <div className={`tarjeta fade-paso flex min-h-[520px] flex-col${paso === 5 ? ' text-center' : ''}`}>
+    <div className={`tarjeta fade-paso flex min-h-[520px] flex-col${paso === 4 ? ' text-center' : ''}`}>
       {contenido}
     </div>
   );

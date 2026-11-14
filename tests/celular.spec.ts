@@ -8,13 +8,19 @@ import { join } from 'path';
 // contra Malvinas real. Cotización 164: sin paciente.celular (campo
 // editable). Cotización 165: con paciente.celular (línea de solo
 // lectura).
+//
+// C2 (14-nov): el campo celular se mudó del viejo Paso 2 ("Datos") al
+// paso de Pago, que absorbió sus dos campos (celular + comentarios) al
+// fusionarse con "¿Cómo querés pagar?" — mismo id="celular", el helper
+// de abajo solo actualiza el texto del botón de la Home y la modalidad
+// elegida en el Paso 1.
 
 const DIR_CAPTURAS = join(__dirname, '..', 'Docs', 'capturas-13nov');
 mkdirSync(DIR_CAPTURAS, { recursive: true });
 
-async function irAPaso2Badra(page: Page, cotizacion: number) {
+async function irAPasoPagoBadra(page: Page, cotizacion: number) {
   await page.goto(`/c/${cotizacion}/aaaaaaaaaaaa`);
-  await page.getByRole('button', { name: /pagar mi tratamiento/i }).click();
+  await page.getByRole('button', { name: /continuar con mi tratamiento/i }).click();
   await page.getByRole('radio', { name: /lo retiro en una farmacia/i }).click();
   await page.getByRole('radio', { name: /nueva farmacia badra/i }).click();
   await page.getByRole('button', { name: /^siguiente$/i }).click();
@@ -23,7 +29,7 @@ async function irAPaso2Badra(page: Page, cotizacion: number) {
 
 test.describe('Celular argentino — validación y línea de solo lectura (390px)', () => {
   test('campo con error: "351250" no alcanza (menos de 10 dígitos)', async ({ page }) => {
-    await irAPaso2Badra(page, 164);
+    await irAPasoPagoBadra(page, 164);
     await page.fill('#celular', '351250');
     await page.locator('#celular').blur();
     await expect(page.getByText('Escribí tu celular con código de área, sin el 0 ni el 15 (10 dígitos)')).toBeVisible();
@@ -31,7 +37,7 @@ test.describe('Celular argentino — validación y línea de solo lectura (390px
   });
 
   test('campo válido: el error desaparece y deja avanzar', async ({ page }) => {
-    await irAPaso2Badra(page, 164);
+    await irAPasoPagoBadra(page, 164);
     await page.fill('#celular', '0351 15 250-1234');
     await page.locator('#celular').blur();
     await expect(page.getByText(/Escribí tu celular/i)).toHaveCount(0);
@@ -40,7 +46,7 @@ test.describe('Celular argentino — validación y línea de solo lectura (390px
   });
 
   test('celular ya cargado por Malvinas: línea de solo lectura, sin campo', async ({ page }) => {
-    await irAPaso2Badra(page, 165);
+    await irAPasoPagoBadra(page, 165);
     await expect(page.getByText(/Te avisamos al 351 250-1234/)).toBeVisible();
     await expect(page.getByRole('button', { name: /cambiarlo/i })).toBeVisible();
     await expect(page.locator('#celular')).toHaveCount(0);

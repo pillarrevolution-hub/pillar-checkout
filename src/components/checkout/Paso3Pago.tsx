@@ -1,16 +1,24 @@
 import { formatoPeso } from '@/lib/firma';
-import { PasoFooter, PasoHeader, Radio } from './ui';
+import { validarCelular, CELULAR_ERROR } from '@/lib/celular';
+import { CelularCampo, PasoFooter, PasoHeader, Radio, placeholderComentarios } from './ui';
 
 export type Pago = 'transferencia' | 'mp' | 'cuotas';
 
 export default function Paso3Pago({
   cotizacion,
+  recibe,
   barraTexto,
   totalMostrado,
   contado,
   cuota,
   pago,
   onElegirPago,
+  celular,
+  setCelular,
+  celularDeMalvinas,
+  referencias,
+  setReferencias,
+  onBlurGuardar,
   whatsapp,
   errorContacto,
   onReintentarContacto,
@@ -18,22 +26,56 @@ export default function Paso3Pago({
   onVolver,
 }: {
   cotizacion: number;
+  // Solo para el placeholder de "Comentarios" (C2): Envío sugiere piso
+  // /depto/timbre, retiro sugiere cualquier otra cosa que haga falta
+  // saber.
+  recibe: 'retiro' | 'envio' | null;
   barraTexto: string;
   totalMostrado: number;
   contado: number;
   cuota: number;
   pago: Pago;
   onElegirPago: (p: Pago) => void;
+  celular: string;
+  setCelular: (v: string) => void;
+  celularDeMalvinas?: string;
+  referencias: string;
+  setReferencias: (v: string) => void;
+  onBlurGuardar: () => void;
   whatsapp: string | null;
   errorContacto?: boolean;
   onReintentarContacto?: () => void;
   onSiguiente: () => void;
   onVolver: () => void;
 }) {
+  const celularOk = validarCelular(celular).ok;
+  // Error recién a partir de 6 dígitos tipeados — antes de eso está
+  // simplemente incompleto, no hace falta marcarlo como inválido.
+  const celularError =
+    !celularOk && celular.replace(/\D/g, '').length >= 6 ? CELULAR_ERROR : undefined;
+
   return (
     <>
-      <PasoHeader paso={3} />
+      <PasoHeader paso={2} />
       <h2 className="mt-5 font-sans text-[26px] font-bold text-tinta">¿Cómo querés pagar?</h2>
+
+      <div className="mt-5 space-y-3">
+        <CelularCampo celular={celular} setCelular={setCelular} onBlur={onBlurGuardar} celularDeMalvinas={celularDeMalvinas} error={celularError} />
+        <div>
+          <label className="label-paso" htmlFor="comentarios">
+            Comentarios <span className="font-normal text-[#475569]">(opcional)</span>
+          </label>
+          <textarea
+            id="comentarios"
+            className="input-paso"
+            rows={2}
+            placeholder={placeholderComentarios(recibe)}
+            value={referencias}
+            onChange={(e) => setReferencias(e.target.value)}
+            onBlur={onBlurGuardar}
+          />
+        </div>
+      </div>
 
       <div className="mt-4 flex items-center justify-between gap-3 rounded-xl bg-navy px-4 py-3.5 text-white" aria-live="polite">
         <span className="text-[15px] font-medium text-slate-200">{barraTexto}</span>
@@ -91,6 +133,8 @@ export default function Paso3Pago({
 
       <PasoFooter
         onSiguiente={onSiguiente}
+        siguienteDeshabilitado={!celularOk}
+        falta="Falta tu celular"
         onVolver={onVolver}
         whatsapp={whatsapp}
         cotizacion={cotizacion}

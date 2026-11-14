@@ -17,21 +17,23 @@ async function irAPaso4(page: Page, pago: 'transferencia' | 'mp' | 'cuotas') {
   // t = 12 hex cualquiera: obtenerDatos solo valida el FORMATO, la firma
   // la valida Malvinas real — acá es el stub, no le importa.
   await page.goto('/c/164/aaaaaaaaaaaa');
-  await page.getByRole('button', { name: /pagar mi tratamiento/i }).click();
+  await page.getByRole('button', { name: /continuar con mi tratamiento/i }).click();
 
+  // C2 (14-nov): la modalidad se elige y confirma en el Paso 1 (Badra no
+  // pide más datos); "Siguiente" lleva directo al paso de Pago, que ahora
+  // fusiona celular + comentarios + método de pago (antes eran dos pasos
+  // separados, Datos y Pago).
   await page.getByRole('radio', { name: /lo retiro en una farmacia/i }).click();
   await page.getByRole('radio', { name: /nueva farmacia badra/i }).click();
   await page.getByRole('button', { name: /^siguiente$/i }).click();
 
   await page.fill('#celular', '3511234567');
-  await page.getByRole('button', { name: /^siguiente$/i }).click();
-
   const nombreOpcion =
     pago === 'transferencia' ? /^Transferencia/i : pago === 'mp' ? /^Mercado Pago/i : /^3 cuotas/i;
   await page.getByRole('radio', { name: nombreOpcion }).click();
   await page.getByRole('button', { name: /^siguiente$/i }).click();
 
-  // Paso4: el h2 de "Vas a pagar…" (o "Transferí…") ya tiene que estar.
+  // Paso de Pagar: el h2 de "Vas a pagar…" (o "Transferí…") ya tiene que estar.
   await page.waitForSelector('h2');
 }
 
