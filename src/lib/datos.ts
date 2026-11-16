@@ -4,7 +4,14 @@ import type { PayloadCheckout } from './firma';
 // Malvinas (checkout-data) con la firma como credencial. Si el precio se
 // editó después de mandar el link, acá llega el vigente; y si ya está
 // paga, viene marcado y el checkout no deja pagar de nuevo.
-export type DatosCheckout = PayloadCheckout & { pagada?: boolean; comprobanteRecibido?: boolean };
+export type DatosCheckout = PayloadCheckout & {
+  pagada?: boolean;
+  comprobanteRecibido?: boolean;
+  // Si la ficha del paciente en Malvinas ya tiene el celular cargado
+  // (hoy no viene — A3, 14-nov), el Paso 2 no lo vuelve a pedir: muestra
+  // una línea de solo lectura con opción de cambiarlo.
+  paciente?: { celular?: string };
+};
 
 export async function obtenerDatos(id: string | number, t: string): Promise<DatosCheckout | null> {
   const base = (process.env.MALVINAS_URL ?? '').replace(/\/$/, '');

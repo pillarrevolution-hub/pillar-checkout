@@ -1,6 +1,6 @@
 import { verificarLink } from '@/lib/firma';
 import { whatsappNumero } from '@/lib/datos';
-import { resolverHoy } from '@/lib/colegioFechas';
+import { advertirSiCalendarioPorVencer, resolverHoy } from '@/lib/colegioFechas';
 import Checkout from '@/components/Checkout';
 
 export const dynamic = 'force-dynamic';
@@ -10,6 +10,7 @@ export const dynamic = 'force-dynamic';
 export default function Cotizacion({ searchParams }: { searchParams: { p?: string; t?: string; hoy?: string } }) {
   const payload = verificarLink(searchParams.p, searchParams.t);
   const hoy = resolverHoy(searchParams.hoy);
+  advertirSiCalendarioPorVencer(hoy);
 
   if (!payload) {
     return (

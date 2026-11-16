@@ -1,7 +1,9 @@
 // Cliente mínimo de la API de Mercado Pago (sin SDK: dos llamadas).
 // Docs: https://www.mercadopago.com.ar/developers/es/reference
 
-const API = 'https://api.mercadopago.com';
+// Overridable solo para Playwright (scripts/stub-mp.mjs, C5): sin
+// `MP_API_URL` pega contra la API real de Mercado Pago, como siempre.
+const API = process.env.MP_API_URL ?? 'https://api.mercadopago.com';
 
 function token(): string {
   const t = process.env.MP_ACCESS_TOKEN;
@@ -13,6 +15,22 @@ export function baseUrl(): string {
   if (process.env.BASE_URL) return process.env.BASE_URL.replace(/\/$/, '');
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
   return 'http://localhost:3000';
+}
+
+export type PaymentMethods = {
+  installments: number;
+  default_installments: number;
+  excluded_payment_types?: { id: string }[];
+};
+
+// Contado (1 cuota) lleva el 15% de descuento: solo vale para dinero en
+// cuenta/débito, así que excluimos tarjeta de crédito. En 3 cuotas no hay
+// descuento y crédito queda habilitado como siempre.
+export function paymentMethodsPara(cuotas: number): PaymentMethods {
+  if (cuotas === 1) {
+    return { installments: 1, default_installments: 1, excluded_payment_types: [{ id: 'credit_card' }] };
+  }
+  return { installments: cuotas, default_installments: cuotas };
 }
 
 // Checkout Pro: se crea una "preferencia" y se redirige al init_point.
@@ -34,6 +52,7 @@ export async function crearPreferencia(args: {
     retiro_lugar: string;
     retiro_fecha_colegio: string;
     envio_localidad: string;
+    envio_provincia: string;
     envio_monto: number;
     direccion_texto: string;
     celular: string;
@@ -55,10 +74,7 @@ export async function crearPreferencia(args: {
       ],
       // Con esto el webhook sabe QUÉ cotización se pagó y cómo.
       external_reference: `${args.cotizacion}|${args.envio}|${args.tipo}`,
-      payment_methods: {
-        installments: args.cuotas,
-        default_installments: args.cuotas,
-      },
+      payment_methods: paymentMethodsPara(args.cuotas),
       back_urls: {
         success: `${base}/gracias`,
         pending: `${base}/gracias?pendiente=1`,

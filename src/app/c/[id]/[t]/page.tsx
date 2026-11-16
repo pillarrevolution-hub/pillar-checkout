@@ -1,5 +1,5 @@
 import { obtenerDatos, linkWhatsApp, whatsappNumero } from '@/lib/datos';
-import { resolverHoy } from '@/lib/colegioFechas';
+import { advertirSiCalendarioPorVencer, resolverHoy } from '@/lib/colegioFechas';
 import { IconCheck, IconLock } from '@/components/icons';
 import Checkout from '@/components/Checkout';
 
@@ -18,6 +18,10 @@ export default async function CotizacionCorta({
   const datos = await obtenerDatos(params.id, params.t);
   const numero = whatsappNumero();
   const hoy = resolverHoy(searchParams.hoy);
+  // C3 (14-nov): aviso de mantenimiento en la consola del server — el
+  // calendario del Colegio (FECHAS_REPARTO_COLEGIO) es una lista fija que
+  // hay que recargar a mano cada tanto.
+  advertirSiCalendarioPorVencer(hoy);
 
   if (!datos) {
     return (

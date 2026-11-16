@@ -1,5 +1,6 @@
-import { obtenerPago, type PagoMP } from './mp';
-import { descripcionRecibo, reciboMostrado } from './mensajes';
+import { obtenerPago, type PagoMP } from './mp.ts';
+import { descripcionRecibo, reciboMostrado } from './mensajes.ts';
+import { listaDesdeContado, cuotaDeLista } from './precios.ts';
 
 // Aviso del pago aprobado a Malvinas (pagada-externa): lo usan el webhook
 // de MP y TAMBIÉN la página /gracias al volver del pago — así la
@@ -36,6 +37,9 @@ export async function avisarPagoAMalvinas(
       retiroModo: typeof m.retiro_modo === 'string' ? m.retiro_modo : '',
       retiroLugar: typeof m.retiro_lugar === 'string' ? m.retiro_lugar : '',
       envioLocalidad: typeof m.envio_localidad === 'string' ? m.envio_localidad : '',
+      // B1 (16-nov): la provincia viaja aparte — ver contrato pendiente
+      // del lado de Malvinas en DESIGN.md.
+      envioProvincia: typeof m.envio_provincia === 'string' ? m.envio_provincia : '',
       envioMonto: Number.isFinite(Number(m.envio_monto)) ? Number(m.envio_monto) : null,
     }),
   }).catch(() => null);
@@ -54,8 +58,21 @@ export async function avisarPagoAMalvinas(
 export type ResumenPago = {
   nombre: string;
   o: number;
+  // Lo que REALMENTE cobró MP (tratamiento + envío) — la fuente para
+  // reconciliar cualquier "Total" que se muestre (C5).
   monto: number;
   tipo: 'contado' | 'cuotas' | '';
+  installments: number;
+  // C5 (16-nov): desglose para /gracias. `lista`/`descuento`/`cuota` son
+  // SIN envío (mismo significado que en la Home y en A2 — el precio del
+  // tratamiento solo); `envioMonto` va aparte. `lista - descuento`
+  // (contado) o `lista` (cuotas), más `envioMonto`, da `monto`.
+  lista: number;
+  descuento: number;
+  cuota: number;
+  envioLocalidad: string;
+  envioProvincia: string;
+  envioMonto: number;
   celular: string;
   recibo: string;
   reciboMostrado: string;
@@ -63,12 +80,14 @@ export type ResumenPago = {
   retiroLugar: string;
 };
 
-function resumenDesdePago(pago: PagoMP, cotizacionId: string): ResumenPago {
+export function resumenDesdePago(pago: PagoMP, cotizacionId: string): ResumenPago {
   const m = (pago.metadata ?? {}) as Record<string, unknown>;
   const retiroModo = typeof m.retiro_modo === 'string' ? m.retiro_modo : '';
   const retiroLugar = typeof m.retiro_lugar === 'string' ? m.retiro_lugar : '';
   const retiroFechaColegio = typeof m.retiro_fecha_colegio === 'string' ? m.retiro_fecha_colegio : '';
   const envioLocalidad = typeof m.envio_localidad === 'string' ? m.envio_localidad : '';
+  const envioProvincia = typeof m.envio_provincia === 'string' ? m.envio_provincia : '';
+  const envioMonto = Number.isFinite(Number(m.envio_monto)) ? Number(m.envio_monto) : 0;
   const direccionTexto = typeof m.direccion_texto === 'string' ? m.direccion_texto : '';
 
   const reciboElegido =
@@ -85,11 +104,29 @@ function resumenDesdePago(pago: PagoMP, cotizacionId: string): ResumenPago {
   const recibo = reciboElegido ? descripcionRecibo(reciboElegido) : 'retiro en farmacia';
   const reciboMostradoTexto = reciboElegido ? reciboMostrado(reciboElegido) : 'retiro en farmacia';
 
+  const installments = pago.installments ?? 1;
+  const esCuotas = installments > 1;
+  // transaction_amount ya incluye el envío (ver total() en firma.ts, la
+  // misma fuente que usó /api/preferencia para armar el monto) — las dos
+  // partes ya eran enteras al sumarse, así que restar no arrastra ningún
+  // redondeo extra.
+  const tratamientoCobrado = pago.transaction_amount - envioMonto;
+  const lista = esCuotas ? tratamientoCobrado : listaDesdeContado(tratamientoCobrado);
+  const descuento = esCuotas ? 0 : lista - tratamientoCobrado;
+  const cuota = esCuotas ? cuotaDeLista(lista) : 0;
+
   return {
     nombre: typeof m.nombre === 'string' ? m.nombre : '',
     o: Number(cotizacionId),
     monto: pago.transaction_amount,
     tipo: m.tipo === 'cuotas' ? 'cuotas' : m.tipo === 'contado' ? 'contado' : '',
+    installments,
+    lista,
+    descuento,
+    cuota,
+    envioLocalidad,
+    envioProvincia,
+    envioMonto,
     celular: typeof m.celular === 'string' ? m.celular : '',
     recibo,
     reciboMostrado: reciboMostradoTexto,

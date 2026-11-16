@@ -12,6 +12,10 @@ export const FECHAS_REPARTO_COLEGIO: readonly string[] = [
 
 export const DIAS_MINIMOS_PRODUCCION = 5;
 
+// C3 (14-nov): aviso de mantenimiento — cuántos días antes de que se
+// agote el calendario cargado hay que empezar a avisar en consola.
+export const DIAS_AVISO_VENCIMIENTO_CALENDARIO = 21;
+
 const ZONA_CORDOBA = 'America/Argentina/Cordoba';
 const MS_POR_DIA = 24 * 60 * 60 * 1000;
 
@@ -48,6 +52,29 @@ export function proximoRepartoColegio(
     if (diffDias >= minDias) return fecha;
   }
   return null;
+}
+
+// C3 (14-nov): avisa en la consola del SERVER cuando falten ≤21 días
+// para la ÚLTIMA fecha cargada en `fechas` — para que alguien cargue el
+// tramo siguiente a tiempo. No inventa fechas nuevas: eso lo decide el
+// desarrollador con el calendario real del Colegio. Pensado para llamarse
+// una vez por request desde la página del checkout (server component),
+// nunca desde el cliente.
+export function advertirSiCalendarioPorVencer(
+  hoy: Date,
+  fechas: readonly string[] = FECHAS_REPARTO_COLEGIO
+): void {
+  const ultima = fechas[fechas.length - 1];
+  if (!ultima) return;
+  const hoyCivil = fechaCivilUTC(hoy);
+  const fechaUltima = new Date(`${ultima}T00:00:00Z`);
+  const diasRestantes = Math.round((fechaUltima.getTime() - hoyCivil.getTime()) / MS_POR_DIA);
+  if (diasRestantes <= DIAS_AVISO_VENCIMIENTO_CALENDARIO) {
+    const [anio, mes, dia] = ultima.split('-');
+    console.warn(
+      `Calendario del Colegio vence el ${dia}/${mes}/${anio}: cargar el tramo siguiente en src/lib/colegioFechas.ts`
+    );
+  }
 }
 
 // "martes 13 de octubre" — día de la semana + día + mes, en minúsculas.

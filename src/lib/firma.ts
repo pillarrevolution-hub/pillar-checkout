@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 import type { TarifaEnvio } from './envios';
+import { listaDesdeContado } from './precios.ts';
 
 // ---------------------------------------------------------------
 // Link firmado del checkout PILL.AR.
@@ -20,8 +21,12 @@ export type PayloadCheckout = {
   // (?p=) siguen trayéndolos; lo nuevo es `envios`.
   ec?: number;
   el?: number;
-  // Tarifario por localidad (checkout-data, links cortos /c/{id}/{t}).
-  // Ausente en los links viejos: ahí "Me lo mandan a casa" va deshabilitado.
+  // `envios` sigue llegando para decidir si "Me lo mandan a casa" está
+  // habilitado (ausente en los links viejos). `tarifas` es DEPRECADO
+  // desde B1 (16-nov): Malvinas lo sigue mandando pero el checkout ya no
+  // lo lee — el precio de envío ahora es plano por provincia, ver
+  // `tarifaEnvio()` en `./envios.ts`. No sacar el campo del tipo: rompería
+  // la respuesta real de checkout-data mientras Malvinas no deje de mandarlo.
   envios?: { recargo: number; leyenda: string; tarifas: TarifaEnvio[] };
   // Localidades de Córdoba para el autocompletar del retiro por Colegio.
   localidades?: readonly string[];
@@ -70,7 +75,7 @@ export function montoEnvio(eleccion: EleccionEnvio): number {
 // deriva del precio de contado, nunca se usa el `li` que manda Malvinas
 // (queda en el payload solo para loguear si difiere mucho).
 export function listaDerivada(p: Pick<PayloadCheckout, 'tr'>): number {
-  return Math.round(p.tr / 0.85);
+  return listaDesdeContado(p.tr);
 }
 
 // contado (transferencia o MP un pago) parte del precio tr; cuotas de la

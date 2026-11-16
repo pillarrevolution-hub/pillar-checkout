@@ -1,17 +1,43 @@
 // ---------------------------------------------------------------
-// Envío por localidad (v3) — mismos helpers que src/lib/envios.ts de
-// Malvinas (tienen que dar EXACTAMENTE lo mismo: el checkout solo busca
-// en el tarifario que ya llega resuelto en `checkout-data.envios.tarifas`,
-// nunca calcula precios). Adaptado a la forma corta de la fila
-// ({ l, p, m, t }) en vez de la fila completa de la tabla.
+// Envío a domicilio (B1, 16-nov): dos tarifas planas según provincia —
+// YA NO se busca ninguna localidad en un tarifario. `tarifaEnvio()` es
+// la única fuente de verdad del monto, acá y en el server
+// (api/preferencia/route.ts) — nunca se vuelve a calcular en dos
+// lugares. Sin plazo de entrega (pedido de Tomi, B1): PLAZO_ENVIO_* están
+// en null a propósito, los define el desarrollador si algún día se
+// quiere volver a mostrar uno.
+//
+// `TarifaEnvio` queda como tipo DEPRECADO: el campo `envios.tarifas` de
+// `checkout-data` lo sigue mandando Malvinas (no se le pidió sacarlo) y
+// el stub de Playwright lo sigue devolviendo para probar que el checkout
+// lo ignora — pero ningún código de acá lo lee más.
 // ---------------------------------------------------------------
 
 export type TarifaEnvio = {
-  l: string; // localidad (como está en el tarifario, MAYÚSCULAS)
+  l: string; // localidad (como está en el tarifario viejo, MAYÚSCULAS)
   p: string; // provincia
   m: number; // monto que paga el paciente (lista + recargo, ya resuelto)
   t: string | null; // demora ("48 hs" / "5 días" / "sale martes y jueves"), null = no se muestra
 };
+
+export const TARIFA_CORDOBA = 15000;
+export const TARIFA_RESTO = 17000;
+
+// Plazo de entrega a mostrar — null = no se renderiza ninguna línea de
+// demora (decisión de B1: "no se muestra ningún plazo de entrega"). Los
+// define el desarrollador si hace falta reactivarlos.
+export const PLAZO_ENVIO_CORDOBA: string | null = null;
+export const PLAZO_ENVIO_RESTO: string | null = null;
+
+// Única regla de precio de envío a domicilio: Córdoba (la provincia,
+// cualquier localidad) paga TARIFA_CORDOBA, el resto del país
+// TARIFA_RESTO. Sin provincia (todavía no la mandó Google ni el
+// paciente) no hay tarifa que mostrar: null.
+export function tarifaEnvio(provincia: string | null | undefined): number | null {
+  const norm = normalizarLocalidad(provincia);
+  if (!norm) return null;
+  return norm === 'cordoba' ? TARIFA_CORDOBA : TARIFA_RESTO;
+}
 
 export function normalizarLocalidad(s: string | null | undefined): string {
   return String(s ?? '')
@@ -20,51 +46,6 @@ export function normalizarLocalidad(s: string | null | undefined): string {
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
-}
-
-const SINONIMOS: string[][] = [
-  ['cordoba', 'cordoba capital', 'cba', 'cordoba cba', 'ciudad de cordoba'],
-  ['carlos paz', 'villa carlos paz'],
-  ['caba', 'capital federal', 'buenos aires', 'ciudad autonoma de buenos aires'],
-];
-
-function equivalentes(norm: string): string[] {
-  const grupo = SINONIMOS.find((g) => g.includes(norm));
-  return grupo ? grupo.filter((x) => x !== norm) : [];
-}
-
-// Tarifa para lo que escribió el paciente: 1) exacta normalizada, 2)
-// sinónimos, 3) contención por tokens completos (si UNA sola matchea).
-export function buscarTarifa(texto: string, tarifas: TarifaEnvio[]): TarifaEnvio | null {
-  const norm = normalizarLocalidad(texto);
-  if (!norm) return null;
-
-  const exacta = tarifas.find((t) => normalizarLocalidad(t.l) === norm);
-  if (exacta) return exacta;
-
-  for (const alt of equivalentes(norm)) {
-    const t = tarifas.find((x) => normalizarLocalidad(x.l) === alt);
-    if (t) return t;
-  }
-
-  const tokens = norm.split(' ');
-  const contienen = tarifas.filter((t) => {
-    const suyos = normalizarLocalidad(t.l).split(' ');
-    return tokens.every((tk) => suyos.includes(tk));
-  });
-  return contienen.length === 1 ? contienen[0] : null;
-}
-
-// Sugerencias para el autocompletar: primero las que EMPIEZAN con el
-// texto (o un sinónimo), después las que lo CONTIENEN. Alfabético.
-export function sugerirTarifas(texto: string, tarifas: TarifaEnvio[], max = 6): TarifaEnvio[] {
-  const norm = normalizarLocalidad(texto);
-  if (!norm) return [];
-  const claves = [norm, ...equivalentes(norm)];
-  const lista = [...tarifas].sort((a, b) => normalizarLocalidad(a.l).localeCompare(normalizarLocalidad(b.l)));
-  const empiezan = lista.filter((t) => claves.some((c) => normalizarLocalidad(t.l).startsWith(c)));
-  const contienen = lista.filter((t) => !empiezan.includes(t) && claves.some((c) => normalizarLocalidad(t.l).includes(c)));
-  return [...empiezan, ...contienen].slice(0, Math.max(0, max));
 }
 
 // Localidad EXACTA (normalizada, sin tildes/mayúsculas) de la lista de

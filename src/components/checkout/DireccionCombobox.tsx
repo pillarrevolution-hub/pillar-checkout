@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useId, useRef, useState } from 'react';
-import { buscarTarifa, tituloLocalidad, type TarifaEnvio } from '@/lib/envios';
+import { tarifaEnvio, tituloLocalidad } from '@/lib/envios';
 import { coincideAproximado, localidadesCoinciden } from '@/lib/direcciones';
 import { formatoPeso } from '@/lib/firma';
 import { IconCheck } from '../icons';
@@ -25,10 +25,17 @@ type DetalleGoogle = {
   altura: string;
   localidadGoogle: string;
   provinciaGoogle: string;
+  // B3 (16-nov): código postal que trae Google — '' si no lo tiene para
+  // ese lugar (el campo de CP queda editable en ese caso, ver Paso1Recibir).
+  codigoPostal: string;
   formateada: string;
 };
+// B1 (16-nov): ya no hay tarifa que matchear por localidad — cualquier
+// localidad de la Argentina es entregable, el monto sale de la
+// PROVINCIA (ver tarifaEnvio en @/lib/envios). `monto` acá es solo para
+// mostrarlo en el botón "Usar {localidad}" antes de apretarlo.
 type AvisoLocalidad =
-  | { tipo: 'localidad-distinta'; localidadGoogle: string; tarifaCanonica: string | null; montoGoogle: number | null }
+  | { tipo: 'localidad-distinta'; localidadGoogle: string; provinciaGoogle: string; monto: number | null }
   | { tipo: 'sin-altura' }
   | { tipo: 'sin-verificar' };
 
@@ -45,7 +52,7 @@ export default function DireccionCombobox({
   habilitado,
   localidad,
   provincia,
-  tarifas,
+  setProvincia,
   envioAdentro,
   calle,
   setCalle,
@@ -53,6 +60,10 @@ export default function DireccionCombobox({
   setDireccionVerificada,
   direccionConfirmadaTexto,
   setDireccionConfirmadaTexto,
+  faltaAltura,
+  setFaltaAltura,
+  cp,
+  setCp,
   onUsarLocalidadGoogle,
   onBlurGuardar,
 }: {
@@ -60,7 +71,10 @@ export default function DireccionCombobox({
   habilitado: boolean;
   localidad: string;
   provincia: string;
-  tarifas: TarifaEnvio[];
+  // B1: la provincia la resuelve este combobox (Google) o el `<select>`
+  // de Plan B que vive en Paso1Recibir — este componente solo la AVISA
+  // para arriba, nunca la pide como dato fijo.
+  setProvincia: (v: string | null) => void;
   envioAdentro?: boolean;
   calle: string;
   setCalle: (v: string) => void;
@@ -68,6 +82,13 @@ export default function DireccionCombobox({
   setDireccionVerificada: (v: boolean) => void;
   direccionConfirmadaTexto: string;
   setDireccionConfirmadaTexto: (v: string) => void;
+  // B3: Google encontró la calle pero no la altura (una esquina, una
+  // plaza) — mientras esto esté prendido, Paso1Recibir bloquea
+  // "Siguiente" (sin altura no se entrega).
+  faltaAltura: boolean;
+  setFaltaAltura: (v: boolean) => void;
+  cp: string;
+  setCp: (v: string) => void;
   onUsarLocalidadGoogle: (localidadCanonica: string) => void;
   onBlurGuardar: () => void;
 }) {
@@ -78,6 +99,10 @@ export default function DireccionCombobox({
   const [abierto, setAbierto] = useState(false);
   const [indiceActivo, setIndiceActivo] = useState(-1);
   const [avisoLocalidad, setAvisoLocalidad] = useState<AvisoLocalidad | null>(null);
+  // B3 (16-nov): altura que el paciente escribe a mano cuando Google
+  // encontró la calle pero no trae street_number — se combina con
+  // pendienteRef.current al confirmar (ver confirmarAltura).
+  const [alturaManual, setAlturaManual] = useState('');
   // Ref, no state: se lee DENTRO de funciones async después de un
   // await, donde un useState recién actualizado por una llamada
   // anterior en la MISMA función seguiría viéndose viejo (closure
@@ -116,7 +141,12 @@ export default function DireccionCombobox({
       setIndiceActivo(-1);
       pendienteRef.current = null;
       seleccionadaRef.current = false;
+      setProvincia(null);
+      setFaltaAltura(false);
+      setAlturaManual('');
+      setCp('');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [calle]);
 
   function registrarFallo() {
@@ -164,6 +194,8 @@ export default function DireccionCombobox({
     if (direccionVerificada) setDireccionVerificada(false);
     setDireccionConfirmadaTexto('');
     setAvisoLocalidad(null);
+    if (faltaAltura) setFaltaAltura(false);
+    setAlturaManual('');
     pendienteRef.current = null;
     seleccionadaRef.current = false;
 
@@ -177,11 +209,24 @@ export default function DireccionCombobox({
     }, 350);
   }
 
+  // Línea de confirmación verde (B3): "{calle} {altura}, {localidad},
+  // {provincia} · CP {cp}" — más completa que la formattedAddress cruda
+  // de Google, que no siempre trae los mismos tramos.
+  function armarResumen(calleCompleta: string, data: DetalleGoogle): string {
+    const partes = [calleCompleta, tituloLocalidad(data.localidadGoogle) || tituloLocalidad(localidad), data.provinciaGoogle].filter(
+      Boolean
+    );
+    return partes.join(', ') + (data.codigoPostal ? ` · CP ${data.codigoPostal}` : '');
+  }
+
   function procesarDetalle(data: DetalleGoogle) {
     if (!data.altura) {
+      pendienteRef.current = data;
+      setAlturaManual('');
       setDireccionVerificada(false);
       setDireccionConfirmadaTexto('');
       setAvisoLocalidad({ tipo: 'sin-altura' });
+      setFaltaAltura(true);
       return;
     }
 
@@ -189,13 +234,12 @@ export default function DireccionCombobox({
     setCalle(texto);
 
     if (!localidadesCoinciden(data.localidadGoogle, localidad)) {
-      const tarifaGoogle = buscarTarifa(data.localidadGoogle, tarifas);
       pendienteRef.current = data;
       setAvisoLocalidad({
         tipo: 'localidad-distinta',
         localidadGoogle: data.localidadGoogle,
-        tarifaCanonica: tarifaGoogle?.l ?? null,
-        montoGoogle: tarifaGoogle?.m ?? null,
+        provinciaGoogle: data.provinciaGoogle,
+        monto: tarifaEnvio(data.provinciaGoogle),
       });
       setDireccionVerificada(false);
       setDireccionConfirmadaTexto('');
@@ -204,8 +248,31 @@ export default function DireccionCombobox({
 
     pendienteRef.current = null;
     setAvisoLocalidad(null);
+    setFaltaAltura(false);
     setDireccionVerificada(true);
-    setDireccionConfirmadaTexto(data.formateada || texto);
+    setDireccionConfirmadaTexto(armarResumen(texto, data));
+    setProvincia(data.provinciaGoogle || null);
+    setCp(data.codigoPostal || '');
+  }
+
+  // Completa la altura que falta (sin-altura) sin volver a pedirle nada
+  // a Google: igual que antes del B3, este camino no corre el chequeo de
+  // "localidad distinta" (prioridad ya existente: altura faltante se
+  // resuelve antes de comparar localidad).
+  function confirmarAltura() {
+    const data = pendienteRef.current;
+    const altura = alturaManual.trim();
+    if (!data || !altura) return;
+    const texto = `${data.calle} ${altura}`.trim();
+    setCalle(texto);
+    setProvincia(data.provinciaGoogle || null);
+    setCp(data.codigoPostal || '');
+    setDireccionVerificada(true);
+    setDireccionConfirmadaTexto(armarResumen(texto, data));
+    setAvisoLocalidad(null);
+    setFaltaAltura(false);
+    pendienteRef.current = null;
+    onBlurGuardar();
   }
 
   async function pedirDetalle(placeId: string): Promise<DetalleGoogle | null> {
@@ -286,8 +353,10 @@ export default function DireccionCombobox({
   }
 
   function usarLocalidadGoogle() {
-    if (avisoLocalidad?.tipo !== 'localidad-distinta' || !avisoLocalidad.tarifaCanonica || !pendienteRef.current) return;
-    onUsarLocalidadGoogle(avisoLocalidad.tarifaCanonica);
+    if (avisoLocalidad?.tipo !== 'localidad-distinta' || !pendienteRef.current) return;
+    onUsarLocalidadGoogle(avisoLocalidad.localidadGoogle);
+    setProvincia(avisoLocalidad.provinciaGoogle || null);
+    setCp(pendienteRef.current.codigoPostal || '');
     setDireccionVerificada(true);
     setDireccionConfirmadaTexto(pendienteRef.current.formateada || calle);
     setAvisoLocalidad(null);
@@ -299,7 +368,11 @@ export default function DireccionCombobox({
     setDireccionVerificada(false);
     setDireccionConfirmadaTexto('');
     setAvisoLocalidad(null);
+    setFaltaAltura(false);
+    setAlturaManual('');
     pendienteRef.current = null;
+    setProvincia(null);
+    setCp('');
     document.getElementById(id)?.focus();
   }
 
@@ -373,19 +446,16 @@ export default function DireccionCombobox({
           <p>
             Esa dirección parece estar en <b>{avisoLocalidad.localidadGoogle}</b>, no en {tituloLocalidad(localidad)}.
           </p>
-          {!avisoLocalidad.tarifaCanonica && (
-            <p className="mt-1">A {avisoLocalidad.localidadGoogle} todavía no llegamos con envío.</p>
-          )}
           <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-            {avisoLocalidad.tarifaCanonica && (
-              <button
-                className="min-h-[44px] flex-1 rounded-xl border border-amber-300 bg-white px-4 py-2.5 text-[14px] font-bold text-amber-900 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee7]"
-                onClick={usarLocalidadGoogle}
-              >
-                Usar {avisoLocalidad.localidadGoogle} · envío{' '}
-                {envioAdentro ? 'incluido en el precio' : formatoPeso(avisoLocalidad.montoGoogle ?? 0)}
-              </button>
-            )}
+            <button
+              className="min-h-[44px] flex-1 rounded-xl border border-amber-300 bg-white px-4 py-2.5 text-[14px] font-bold tabular-nums text-amber-900 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee7]"
+              onClick={usarLocalidadGoogle}
+            >
+              Usar {avisoLocalidad.localidadGoogle}
+              {avisoLocalidad.monto !== null && (
+                <> · envío {envioAdentro ? 'incluido en el precio' : formatoPeso(avisoLocalidad.monto)}</>
+              )}
+            </button>
             <button
               className="min-h-[44px] flex-1 rounded-xl border border-amber-300 bg-white px-4 py-2.5 text-[14px] font-bold text-amber-900 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee7]"
               onClick={corregirDireccion}
@@ -397,10 +467,34 @@ export default function DireccionCombobox({
       )}
 
       {avisoLocalidad?.tipo === 'sin-altura' && (
-        <p className="mt-2 rounded-xl bg-amber-50 p-4 text-[18px] leading-relaxed text-amber-900" aria-live="polite">
-          Nos falta la altura de la calle. Agregá el número y volvé a elegir la dirección de la
-          lista.
-        </p>
+        <div className="mt-2 rounded-xl bg-amber-50 p-4 text-[18px] leading-relaxed text-amber-900" aria-live="polite">
+          <p>Nos falta la altura de esa calle — la necesitamos para poder entregar ahí.</p>
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+            <input
+              id={`${id}-altura`}
+              aria-label="Altura"
+              className="input-paso sm:w-28"
+              inputMode="numeric"
+              placeholder="Altura"
+              value={alturaManual}
+              onChange={(e) => setAlturaManual(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  confirmarAltura();
+                }
+              }}
+            />
+            <button
+              type="button"
+              disabled={!alturaManual.trim()}
+              className="min-h-[44px] flex-1 rounded-xl border border-amber-300 bg-white px-4 py-2.5 text-[14px] font-bold text-amber-900 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee7] disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={confirmarAltura}
+            >
+              Confirmar altura
+            </button>
+          </div>
+        </div>
       )}
 
       {avisoLocalidad?.tipo === 'sin-verificar' && (

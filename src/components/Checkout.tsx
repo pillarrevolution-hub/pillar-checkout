@@ -6,25 +6,25 @@ import {
   montoEnvio,
   total,
   type EleccionEnvio,
-  type PayloadCheckout,
 } from '@/lib/firma';
-import { buscarTarifa, tituloLocalidad } from '@/lib/envios';
-import { descripcionRecibo, mensajeConfirmacion, reciboMostrado, type ReciboElegido } from '@/lib/mensajes';
-import { FARMACIAS_RED } from '@/lib/farmaciasRed';
+import type { DatosCheckout } from '@/lib/datos';
+import { cuotaDeLista } from '@/lib/precios';
+import { tarifaEnvio, tituloLocalidad } from '@/lib/envios';
+import { claveDraft } from '@/lib/borrador';
+import { descripcionRecibo, type ReciboElegido } from '@/lib/mensajes';
 import { RETIRO_LUGAR_BADRA } from '@/lib/farmaciaBadra';
 import { proximoRepartoColegio, fechaRepartoTexto } from '@/lib/colegioFechas';
 import Home from './checkout/Home';
 import Paso1Recibir from './checkout/Paso1Recibir';
-import Paso2Datos from './checkout/Paso2Datos';
 import Paso3Pago, { type Pago } from './checkout/Paso3Pago';
 import Paso4Pagar from './checkout/Paso4Pagar';
-import Paso5Confirmacion from './checkout/Paso5Confirmacion';
 
 // ---------------------------------------------------------------
 // Checkout PILL.AR v3 — UNA sola versión (decisión de Tomi): Home + paso
 // a paso de 4 pantallas. Retiro en Farmacia RED / Colegio de
-// Farmacéuticos, envío a domicilio por localidad con precio al instante
-// (tarifario vivo de Malvinas), sin fecha de entrega. `history.pushState`
+// Farmacéuticos, envío a domicilio a todo el país con tarifa plana por
+// provincia (B1, 16-nov: $15.000 Córdoba / $17.000 resto, ver
+// `tarifaEnvio()` en @/lib/envios), sin fecha de entrega. `history.pushState`
 // por paso para que el botón "atrás" del celular funcione. Todo el estado
 // del paso a paso vive en UN reducer (v3.1) que se guarda en
 // sessionStorage en cada cambio — un refresh accidental no pierde nada
@@ -32,7 +32,15 @@ import Paso5Confirmacion from './checkout/Paso5Confirmacion';
 // pestaña).
 // ---------------------------------------------------------------
 
-type Paso = 0 | 1 | 2 | 3 | 4 | 5;
+// C2 (14-nov): bajó de 6 a 4 pantallas — el viejo Paso 2 ("Datos", los
+// campos propios de cada modalidad) se fusionó con el Paso 1 (acordeón)
+// y con "¿Cómo querés pagar?" (celular + comentarios). Flujo numerado
+// (PasoHeader, "de 3"): 1 Recibir → 2 Pago → 3 Pagar; 0 Home queda sin
+// número visible, como antes. C4 (16-nov): la confirmación de
+// transferencia dejó de ser una 5ª pantalla del wizard — "Ya envié el
+// comprobante" ahora navega afuera, a /gracias (mismo destino que vuelve
+// de Mercado Pago), así que el `Paso` más alto es 3.
+type Paso = 0 | 1 | 2 | 3;
 type Recibe = 'retiro' | 'envio' | null;
 type RetiroModo = 'red' | 'colegio' | 'badra' | '';
 
@@ -43,6 +51,11 @@ type Estado = {
   farmaciaRed: string;
   colegioLocalidad: string;
   envioLocalidadTexto: string;
+  // B1 (16-nov): provincia del domicilio de envío — la resuelve Google
+  // (DireccionCombobox) o el `<select>` de Plan B en Paso1Recibir. Único
+  // dato del que depende el precio del envío (ver tarifaEnvio en
+  // @/lib/envios); null hasta que se resuelve de una forma u otra.
+  provincia: string | null;
   calle: string;
   // Verificación de dirección con Google Places (v3.2, tema 2/3):
   // direccionVerificada nunca bloquea nada, solo decide si
@@ -52,7 +65,16 @@ type Estado = {
   // para sobrevivir al desmontaje/montaje del paso al volver.
   direccionVerificada: boolean;
   direccionConfirmadaTexto: string;
+  // B3 (16-nov): si Google reconoce la calle pero no trae `street_number`
+  // (una esquina, una plaza), no se puede entregar ahí — el combobox pide
+  // la altura en un campo chico al lado y esto bloquea "Siguiente" hasta
+  // que se complete (ver Paso1Recibir.puedeAvanzar).
+  faltaAltura: boolean;
   piso: string;
+  // B3 (16-nov): código postal — lo trae Google con la dirección elegida
+  // (DireccionCombobox lo escribe acá solo); si no lo trae, queda vacío y
+  // el paciente lo puede escribir a mano en un campo editable, sin que
+  // eso bloquee nada (aviso suave, igual que antes).
   cp: string;
   referencias: string;
   celular: string;
@@ -66,9 +88,11 @@ const ESTADO_INICIAL: Estado = {
   farmaciaRed: '',
   colegioLocalidad: '',
   envioLocalidadTexto: '',
+  provincia: null,
   calle: '',
   direccionVerificada: false,
   direccionConfirmadaTexto: '',
+  faltaAltura: false,
   piso: '',
   cp: '',
   referencias: '',
@@ -90,7 +114,13 @@ type Accion =
   // {localidadGoogle}", que cambia la localidad SIN tocar la dirección
   // (la dirección seguía siendo la correcta, solo estaba mal
   // etiquetada).
-  | { type: 'cambiarLocalidadEnvio'; valor: string };
+  | { type: 'cambiarLocalidadEnvio'; valor: string }
+  // C2 (14-nov): elegir la modalidad (o la sub-modalidad de retiro) limpia
+  // los datos de la que se deja — nunca quedan "fantasmas" en el estado
+  // ni en el borrador (ej.: elegir envío con dirección cargada y después
+  // volver a RED no debe dejar esa dirección dando vueltas).
+  | { type: 'elegirRecibe'; valor: 'retiro' | 'envio' }
+  | { type: 'elegirRetiroModo'; valor: 'red' | 'colegio' | 'badra' };
 
 function reducerPaso(estado: Estado, accion: Accion): Estado {
   switch (accion.type) {
@@ -105,16 +135,38 @@ function reducerPaso(estado: Estado, accion: Accion): Estado {
       return {
         ...estado,
         envioLocalidadTexto: accion.valor,
-        ...(huboDireccion ? { calle: '', direccionVerificada: false, direccionConfirmadaTexto: '' } : {}),
+        // Nueva localidad → la provincia vieja ya no vale nada (puede
+        // ser otra, aunque Google no haya vuelto a correr todavía).
+        provincia: null,
+        ...(huboDireccion
+          ? { calle: '', direccionVerificada: false, direccionConfirmadaTexto: '', faltaAltura: false, cp: '' }
+          : {}),
       };
     }
+    case 'elegirRecibe':
+      return accion.valor === 'envio'
+        ? { ...estado, recibe: 'envio', retiroModo: '', farmaciaRed: '', colegioLocalidad: '' }
+        : {
+            ...estado,
+            recibe: 'retiro',
+            envioLocalidadTexto: '',
+            provincia: null,
+            calle: '',
+            direccionVerificada: false,
+            direccionConfirmadaTexto: '',
+            faltaAltura: false,
+            cp: '',
+          };
+    case 'elegirRetiroModo':
+      return {
+        ...estado,
+        retiroModo: accion.valor,
+        farmaciaRed: accion.valor === 'red' ? estado.farmaciaRed : '',
+        colegioLocalidad: accion.valor === 'colegio' ? estado.colegioLocalidad : '',
+      };
     default:
       return estado;
   }
-}
-
-function claveDraft(o: number): string {
-  return `pillar-checkout-draft-${o}`;
 }
 
 function cargarDraft(o: number): Estado | null {
@@ -136,7 +188,7 @@ export default function Checkout({
   comprobanteRecibido = false,
   hoy,
 }: {
-  payload: PayloadCheckout;
+  payload: DatosCheckout;
   fuente: { c: string; t: string } | { p: string; t: string };
   whatsapp: string | null;
   comprobanteRecibido?: boolean;
@@ -150,9 +202,11 @@ export default function Checkout({
     farmaciaRed,
     colegioLocalidad,
     envioLocalidadTexto,
+    provincia,
     calle,
     direccionVerificada,
     direccionConfirmadaTexto,
+    faltaAltura,
     piso,
     cp,
     referencias,
@@ -182,27 +236,11 @@ export default function Checkout({
   // "Usar {localidadGoogle}": la dirección seguía siendo la correcta,
   // solo estaba etiquetada con otra localidad — cambia la localidad
   // SIN pasar por 'cambiarLocalidadEnvio' (que limpiaría la dirección
-  // que el combobox ya marcó como verificada).
-  //
-  // C3 (impeccable, 14-sep): este cambio de localidad puede cambiar
-  // cuánto paga el paciente por el envío — el botón que dispara esto ya
-  // muestra el precio nuevo ANTES de tocarlo (DireccionCombobox), pero
-  // acá además se compara contra el precio ANTERIOR (el de la localidad
-  // que el paciente había tipeado) para decidir si hace falta resaltar
-  // la caja de precio y anunciarlo — si no cambió (p. ej. envioAdentro,
-  // que siempre da $0), no se avisa nada: un aviso que nunca cambia
-  // enseña a ignorar los avisos.
+  // que el combobox ya marcó como verificada). La provincia (y, con
+  // ella, el precio) la actualiza el combobox aparte, vía `setProvincia`
+  // — ver el aviso de precio actualizado más abajo.
   function usarLocalidadGoogle(localidadCanonica: string) {
-    const tarifaNueva = buscarTarifa(localidadCanonica, tarifas);
-    const montoAnterior = payload.envioAdentro ? 0 : (tarifaEncontrada ? tarifaEncontrada.m : null);
-    const montoNuevo = payload.envioAdentro ? 0 : (tarifaNueva ? tarifaNueva.m : null);
-    // localidadCanonica viene de TarifaEnvio.l — MAYÚSCULAS, como está
-    // en el tarifario. El campo de localidad siempre muestra el nombre
-    // prolijo (mismo criterio que el datalist de sugerencias).
     campo('envioLocalidadTexto', tituloLocalidad(localidadCanonica));
-    if (montoNuevo !== null && montoNuevo !== montoAnterior) {
-      setAvisoPrecioActualizado(formatoPeso(montoNuevo));
-    }
   }
 
   // Se apaga sola: el resaltado y el anuncio son un instante, no un
@@ -214,6 +252,23 @@ export default function Checkout({
     return () => clearTimeout(t);
   }, [avisoPrecioActualizado]);
 
+  // B1 (16-nov): el precio de envío depende solo de la provincia — si
+  // cambia DESPUÉS de haberse mostrado una vez (ej.: "Usar {localidad}"
+  // resuelve una provincia distinta a la tipeada), se resalta la caja de
+  // precio y se anuncia, igual que hacía antes el cambio de localidad.
+  // Si todavía no se mostró ningún precio (primera vez que se resuelve),
+  // no hay "antes" contra qué comparar — no se avisa nada.
+  const montoEnvioAnteriorRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (recibe !== 'envio') return;
+    const montoNuevo = payload.envioAdentro ? 0 : tarifaEnvio(provincia);
+    const anterior = montoEnvioAnteriorRef.current;
+    if (anterior !== null && montoNuevo !== null && montoNuevo !== anterior) {
+      setAvisoPrecioActualizado(formatoPeso(montoNuevo));
+    }
+    montoEnvioAnteriorRef.current = montoNuevo;
+  }, [recibe, provincia, payload.envioAdentro]);
+
   // Hasta que el borrador se restaure (o se confirme que no había
   // ninguno), no sabemos qué paso mostrar: mientras tanto se pinta un
   // placeholder neutro (nunca la Home) para que el HTML del server y el
@@ -221,18 +276,10 @@ export default function Checkout({
   // real al que se vaya a volver.
   const [listo, setListo] = useState(false);
 
-  const [subiendo, setSubiendo] = useState(false);
-  const [errorComprobante, setErrorComprobante] = useState('');
-  const [comprobanteListo, setComprobanteListo] = useState(false);
+  const [enviandoAviso, setEnviandoAviso] = useState(false);
   const [cargandoMP, setCargandoMP] = useState(false);
   const [errorMP, setErrorMP] = useState('');
   const [errorContacto, setErrorContacto] = useState(false);
-  // Aviso no persistente (no va al draft de sessionStorage): cuando un
-  // botón de escape del paso 2 (Colegio bloqueado) manda de vuelta al
-  // paso 1 con una opción ya preseleccionada, esto evita que el cambio
-  // pase en silencio — se limpia apenas el paciente vuelve a tocar una
-  // opción a mano.
-  const [avisoCambioRecibe, setAvisoCambioRecibe] = useState<'' | 'envio' | 'red'>('');
 
   const ultimoContacto = useRef('');
 
@@ -265,6 +312,7 @@ export default function Checkout({
   useLayoutEffect(() => {
     const draft = cargarDraft(payload.o);
     if (draft) dispatch({ type: 'restaurar', estado: draft });
+    else if (payload.paciente?.celular) dispatch({ type: 'campo', campo: 'celular', valor: payload.paciente.celular });
     // Se preserva el resto de history.state (Next.js guarda ahí sus
     // propios internals de router, __NA entre otros) y solo se pisa la
     // clave `paso`: reemplazar el objeto entero deja a Next sin sus datos
@@ -287,16 +335,16 @@ export default function Checkout({
   }
   const volver = () => window.history.back();
 
-  const tarifas = payload.envios?.tarifas ?? [];
   const localidades = payload.localidades ?? [];
-  const tarifaEncontrada = recibe === 'envio' ? buscarTarifa(envioLocalidadTexto, tarifas) : null;
+  // B1 (16-nov): sin tarifario — el monto sale solo de la provincia.
+  const montoEnvioCalculado = recibe === 'envio' ? tarifaEnvio(provincia) : null;
 
   const eleccion: EleccionEnvio = useMemo(() => {
-    if (recibe === 'envio' && tarifaEncontrada) {
-      return { modo: 'envio', monto: payload.envioAdentro ? 0 : tarifaEncontrada.m };
+    if (recibe === 'envio' && montoEnvioCalculado !== null) {
+      return { modo: 'envio', monto: payload.envioAdentro ? 0 : montoEnvioCalculado };
     }
     return { modo: 'retiro' };
-  }, [recibe, tarifaEncontrada, payload.envioAdentro]);
+  }, [recibe, montoEnvioCalculado, payload.envioAdentro]);
 
   const li = listaDerivada(payload);
   if (Math.abs(payload.li - li) > 1) {
@@ -304,19 +352,19 @@ export default function Checkout({
     // li que manda Malvinas, esto es solo diagnóstico.
     console.warn(`Checkout: li de Malvinas (${payload.li}) difiere de la lista derivada (${li})`);
   }
-  const t = useMemo(
-    () => ({
+  const t = useMemo(() => {
+    const cuotas = total(payload, eleccion, 'cuotas');
+    return {
       contado: total(payload, eleccion, 'contado'),
-      cuotas: total(payload, eleccion, 'cuotas'),
-      cuota: Math.round((li + montoEnvio(eleccion)) / 3),
+      cuotas,
+      cuota: cuotaDeLista(cuotas),
       envio: montoEnvio(eleccion),
-    }),
-    [payload, eleccion, li]
-  );
+    };
+  }, [payload, eleccion, li]);
 
   const direccionEnvioCompleta = useMemo(() => {
     if (recibe !== 'envio') return '';
-    const localidadDisplay = tarifaEncontrada ? tituloLocalidad(tarifaEncontrada.l) : envioLocalidadTexto.trim();
+    const localidadDisplay = tituloLocalidad(envioLocalidadTexto.trim());
     const base = [
       calle.trim(),
       piso.trim(),
@@ -330,12 +378,12 @@ export default function Checkout({
     // Google no pudo confirmar. Verificada, no se le agrega nada.
     if (base && !direccionVerificada) return `${base} ⚠ Dirección sin verificar`;
     return base;
-  }, [recibe, calle, piso, cp, referencias, tarifaEncontrada, envioLocalidadTexto, direccionVerificada]);
+  }, [recibe, calle, piso, cp, referencias, envioLocalidadTexto, direccionVerificada]);
 
   const direccionCorta = useMemo(() => {
-    const localidadDisplay = tarifaEncontrada ? tituloLocalidad(tarifaEncontrada.l) : envioLocalidadTexto.trim();
+    const localidadDisplay = tituloLocalidad(envioLocalidadTexto.trim());
     return [calle.trim(), piso.trim()].filter(Boolean).join(' ').concat(localidadDisplay ? `, ${localidadDisplay}` : '');
-  }, [calle, piso, tarifaEncontrada, envioLocalidadTexto]);
+  }, [calle, piso, envioLocalidadTexto]);
 
   // Próximo reparto del Colegio de Farmacéuticos según el calendario CFC
   // fijo — depende solo de la fecha de HOY (server), nunca de la
@@ -345,15 +393,22 @@ export default function Checkout({
   const repartoColegio = useMemo(() => proximoRepartoColegio(new Date(hoy)), [hoy]);
   const fechaColegioTexto = repartoColegio ? fechaRepartoTexto(repartoColegio) : null;
 
+  // C2 (14-nov): "Comentarios" es un solo campo genérico para las 4
+  // modalidades (antes solo Envío y Badra lo guardaban en algún lado —
+  // RED y Colegio lo perdían en silencio porque ni se los mostraba).
+  // Viaja en `direccionEnvio` de la cotización, el mismo campo que ya
+  // usa Seguimiento para mostrar "Dirección de envío" (columna genérica,
+  // ya se usaba para notas que no son una dirección — p. ej. "Llega por
+  // Colegio: …" — confirmado leyendo contacto-externa/Seguimiento.tsx en
+  // el repo padre; no hizo falta tocar nada ahí).
+  const comentario = referencias.trim();
   const direccionParaGuardar =
     recibe === 'envio'
-      ? direccionEnvioCompleta
-      : recibe === 'retiro' && retiroModo === 'colegio' && fechaColegioTexto
-        ? `Llega por Colegio: ${fechaColegioTexto}`
-        // Badra no pide dirección (el local es fijo): los "comentarios"
-        // opcionales viajan en el mismo campo que usa el resto del Paso 2.
-        : recibe === 'retiro' && retiroModo === 'badra'
-          ? referencias.trim()
+      ? direccionEnvioCompleta // ya incluye el comentario (ver más abajo)
+      : recibe === 'retiro' && retiroModo === 'colegio'
+        ? [fechaColegioTexto ? `Llega por Colegio: ${fechaColegioTexto}` : '', comentario].filter(Boolean).join(' — ')
+        : recibe === 'retiro' && (retiroModo === 'badra' || retiroModo === 'red')
+          ? comentario
           : '';
 
   // Guarda contacto/elección en Malvinas. Si falla, NO marca la clave como
@@ -361,7 +416,11 @@ export default function Checkout({
   // reintente solo) y prende el aviso ámbar; nunca bloquea avanzar.
   async function guardarContacto() {
     const cel = celular.trim();
-    const envioLocalidadEnviar = recibe === 'envio' && tarifaEncontrada ? tarifaEncontrada.l : '';
+    const envioLocalidadEnviar = recibe === 'envio' && envioLocalidadTexto.trim() ? tituloLocalidad(envioLocalidadTexto.trim()) : '';
+    // B1: la provincia viaja APARTE de la localidad — es lo único de lo
+    // que depende el monto del lado del server (ver DESIGN.md, contrato
+    // pendiente del lado de Malvinas).
+    const envioProvinciaEnviar = recibe === 'envio' ? (provincia ?? '') : '';
     const retiroModoEnviar: RetiroModo = recibe === 'retiro' ? retiroModo : '';
     const retiroLugarEnviar =
       retiroModoEnviar === 'red'
@@ -372,10 +431,18 @@ export default function Checkout({
             ? RETIRO_LUGAR_BADRA
             : '';
     const tipoEnviar = pago === 'cuotas' ? 'cuotas' : 'contado';
-    const envioMontoEnviar = envioLocalidadEnviar ? (payload.envioAdentro ? 0 : (tarifaEncontrada?.m ?? 0)) : null;
+    const envioMontoEnviar = envioLocalidadEnviar ? (payload.envioAdentro ? 0 : (montoEnvioCalculado ?? 0)) : null;
 
     if (!cel && !direccionParaGuardar && !envioLocalidadEnviar && !retiroModoEnviar) return;
-    const clave = JSON.stringify([cel, direccionParaGuardar, envioLocalidadEnviar, retiroModoEnviar, retiroLugarEnviar, tipoEnviar]);
+    const clave = JSON.stringify([
+      cel,
+      direccionParaGuardar,
+      envioLocalidadEnviar,
+      envioProvinciaEnviar,
+      retiroModoEnviar,
+      retiroLugarEnviar,
+      tipoEnviar,
+    ]);
     if (clave === ultimoContacto.current) return;
 
     try {
@@ -387,6 +454,7 @@ export default function Checkout({
           celular: cel,
           direccion: direccionParaGuardar,
           envioLocalidad: envioLocalidadEnviar,
+          envioProvincia: envioProvinciaEnviar,
           envioMonto: envioMontoEnviar,
           retiroModo: retiroModoEnviar,
           retiroLugar: retiroLugarEnviar,
@@ -420,10 +488,11 @@ export default function Checkout({
   // restaurar la página desde bfcache tal cual quedó (cargandoMP: true
   // congelado para siempre, porque el fetch que lo iba a apagar ya
   // corrió antes de irte). Estos dos efectos cubren las dos formas de
-  // "volver": salir del paso 4 adentro de la SPA (Volver / atrás cambia
-  // el paso) y volver desde afuera vía bfcache (pageshow persisted).
+  // "volver": salir del paso de Pagar adentro de la SPA (Volver / atrás
+  // cambia el paso) y volver desde afuera vía bfcache (pageshow
+  // persisted).
   useEffect(() => {
-    if (paso !== 4) return;
+    if (paso !== 3) return;
     return () => {
       setCargandoMP(false);
       setErrorMP('');
@@ -441,52 +510,34 @@ export default function Checkout({
     return () => window.removeEventListener('pageshow', onPageShow);
   }, []);
 
-  // Fotos de celular vienen de 5-10 MB y el límite del server es ~3.5 MB:
-  // las imágenes grandes se achican en el navegador (máx. 1800 px, JPEG)
-  // antes de subir. Los PDF van tal cual (con tope).
-  async function archivoABase64(file: File): Promise<{ base64: string; mime: string; nombre: string }> {
-    const esImagen = file.type === 'image/jpeg' || file.type === 'image/png';
-    if (esImagen && file.size > 900_000) {
-      const bitmap = await createImageBitmap(file);
-      const escala = Math.min(1, 1800 / Math.max(bitmap.width, bitmap.height));
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.round(bitmap.width * escala);
-      canvas.height = Math.round(bitmap.height * escala);
-      canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
-      return { base64: dataUrl.split(',')[1] ?? '', mime: 'image/jpeg', nombre: file.name.replace(/\.\w+$/, '') + '.jpg' };
-    }
-    if (file.size > 3_400_000) {
-      throw new Error('El archivo es muy pesado (máx. 3,5 MB). Probá con una foto o un PDF más liviano.');
-    }
-    const base64 = await new Promise<string>((resolve, reject) => {
-      const r = new FileReader();
-      r.onload = () => resolve(String(r.result).split(',')[1] ?? '');
-      r.onerror = reject;
-      r.readAsDataURL(file);
-    });
-    return { base64, mime: file.type, nombre: file.name };
-  }
-
-  async function enviarComprobante(archivo: File) {
-    setSubiendo(true);
-    setErrorComprobante('');
+  // C4 (16-nov): "Ya envié el comprobante" ya no sube ningún archivo — el
+  // paciente lo manda por WhatsApp. Esto solo le avisa a Malvinas (best
+  // effort: ver /api/comprobante) y después navega afuera del wizard, a
+  // /gracias, igual que al volver de Mercado Pago. Nunca frena al
+  // paciente: pase lo que pase con el aviso, siempre termina en /gracias.
+  async function avisarComprobanteEnviado() {
+    setEnviandoAviso(true);
     try {
       await guardarContacto();
-      const { base64, mime, nombre } = await archivoABase64(archivo);
-      const res = await fetch('/api/comprobante', {
+      await fetch('/api/comprobante', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...fuente, nombreArchivo: nombre, mime, datosBase64: base64 }),
+        body: JSON.stringify({ ...fuente, celular: celular.trim() }),
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error ?? 'No pudimos subir el comprobante — probá de nuevo');
-      setComprobanteListo(true);
-      irA(5);
-    } catch (e: any) {
-      setErrorComprobante(e.message ?? 'No pudimos subir el comprobante — probá de nuevo');
+    } catch {
+      // No bloquea: el comprobante ya le llegó a Atención por WhatsApp.
     } finally {
-      setSubiendo(false);
+      // C5b (16-nov): /gracias pide nombre/monto a checkout-data con el
+      // MISMO token firmado del link (fuente.t) en vez de confiar en
+      // query params sueltos — así no hace falta mandar nombre/monto por
+      // la URL, igual que el camino de Mercado Pago no confía en lo que
+      // venga de afuera.
+      const params = new URLSearchParams({
+        transferencia: '1',
+        o: String(payload.o),
+        t: fuente.t,
+      });
+      window.location.href = `/gracias?${params.toString()}`;
     }
   }
 
@@ -509,7 +560,8 @@ export default function Checkout({
                   ? RETIRO_LUGAR_BADRA
                   : colegioLocalidad.trim()
               : '',
-          envioLocalidad: recibe === 'envio' && tarifaEncontrada ? tarifaEncontrada.l : '',
+          envioLocalidad: recibe === 'envio' && envioLocalidadTexto.trim() ? tituloLocalidad(envioLocalidadTexto.trim()) : '',
+          envioProvincia: recibe === 'envio' ? (provincia ?? '') : '',
           tipo: pago === 'cuotas' ? 'cuotas' : 'contado',
           celular: celular.trim(),
           direccionTexto: recibe === 'envio' ? direccionCorta : '',
@@ -529,12 +581,10 @@ export default function Checkout({
     return <div className="tarjeta" style={{ minHeight: 520, background: '#edf2f8' }} />;
   }
 
-  // Shell único (tarjeta blanca + piso de alto) para las 6 pantallas del
-  // wizard: antes cada PasoN traía su propio wrapper .tarjeta, con
-  // min-height inconsistente (Paso1/2/3 lo fijaban, Home/Paso4/Paso5 no)
-  // — eso hacía saltar el alto de la tarjeta en cada transición. Ahora
-  // cada PasoN devuelve solo su contenido y el alto se fija acá, una
-  // sola vez, parejo para los 6.
+  // Shell único (tarjeta blanca + piso de alto) para las 5 pantallas del
+  // wizard (C2, 14-nov: bajaron de 6 a 5 al fusionar el viejo Paso 2 con
+  // el 1 y el 3) — cada PasoN devuelve solo su contenido y el alto se
+  // fija acá, una sola vez, parejo para las 5.
   let contenido: React.ReactNode = null;
 
   if (paso === 0) {
@@ -543,10 +593,9 @@ export default function Checkout({
         nombre={payload.n}
         li={li}
         contado={payload.tr}
-        cuotaSinEnvio={Math.round(li / 3)}
+        cuotaSinEnvio={cuotaDeLista(li)}
         whatsapp={whatsapp}
         comprobanteRecibido={comprobanteRecibido}
-        comprobanteListo={comprobanteListo}
         onEmpezar={() => irA(1)}
       />
     );
@@ -560,55 +609,21 @@ export default function Checkout({
         whatsapp={whatsapp}
         errorContacto={errorContacto}
         onReintentarContacto={guardarContacto}
-        avisoCambio={avisoCambioRecibe}
-        onElegirRecibe={(r) => {
-          setAvisoCambioRecibe('');
-          campo('recibe', r);
-        }}
-        onElegirRetiroModo={(m) => {
-          setAvisoCambioRecibe('');
-          campo('retiroModo', m);
-        }}
-        onSiguiente={() => {
-          guardarContacto();
-          irA(2);
-        }}
-        onVolver={volver}
-      />
-    );
-  } else if (paso === 2 && recibe) {
-    contenido = (
-      <Paso2Datos
-        cotizacion={payload.o}
-        recibe={recibe}
-        retiroModo={retiroModo}
-        tarifas={tarifas}
+        onElegirRecibe={(r) => dispatch({ type: 'elegirRecibe', valor: r })}
+        onElegirRetiroModo={(m) => dispatch({ type: 'elegirRetiroModo', valor: m })}
         leyendaEnvio={payload.envios?.leyenda ?? ''}
         envioAdentro={payload.envioAdentro}
         localidades={localidades}
-        whatsapp={whatsapp}
-        errorContacto={errorContacto}
-        onReintentarContacto={guardarContacto}
         farmaciaRed={farmaciaRed}
         setFarmaciaRed={(v) => campo('farmaciaRed', v)}
         colegioLocalidad={colegioLocalidad}
         setColegioLocalidad={(v) => campo('colegioLocalidad', v)}
         fechaColegioTexto={fechaColegioTexto}
-        onCambiarAEnvio={() => {
-          campo('recibe', 'envio');
-          campo('retiroModo', '');
-          setAvisoCambioRecibe('envio');
-          irA(1);
-        }}
-        onCambiarARed={() => {
-          campo('recibe', 'retiro');
-          campo('retiroModo', 'red');
-          setAvisoCambioRecibe('red');
-          irA(1);
-        }}
         envioLocalidadTexto={envioLocalidadTexto}
         setEnvioLocalidadTexto={cambiarLocalidadEnvio}
         avisoLocalidadCambiada={avisoLocalidadCambiada}
+        provincia={provincia}
+        setProvincia={(v) => campo('provincia', v)}
         calle={calle}
         setCalle={(v) => {
           setAvisoLocalidadCambiada(false);
@@ -618,25 +633,16 @@ export default function Checkout({
         setDireccionVerificada={(v) => campo('direccionVerificada', v)}
         direccionConfirmadaTexto={direccionConfirmadaTexto}
         setDireccionConfirmadaTexto={(v) => campo('direccionConfirmadaTexto', v)}
-        onUsarLocalidadGoogle={usarLocalidadGoogle}
-        avisoPrecioActualizado={avisoPrecioActualizado}
-        piso={piso}
-        setPiso={(v) => campo('piso', v)}
+        faltaAltura={faltaAltura}
+        setFaltaAltura={(v) => campo('faltaAltura', v)}
         cp={cp}
         setCp={(v) => campo('cp', v)}
-        referencias={referencias}
-        setReferencias={(v) => campo('referencias', v)}
-        celular={celular}
-        setCelular={(v) => campo('celular', v)}
+        onUsarLocalidadGoogle={usarLocalidadGoogle}
+        avisoPrecioActualizado={avisoPrecioActualizado}
         onBlurGuardar={guardarContacto}
-        onIrARetiro={() => {
-          campo('recibe', 'retiro');
-          campo('retiroModo', '');
-          irA(1);
-        }}
         onSiguiente={() => {
           guardarContacto();
-          irA(3);
+          irA(2);
         }}
         onVolver={volver}
       />
@@ -644,10 +650,7 @@ export default function Checkout({
   }
 
   // Cómo lo recibe, en una frase — la misma base para el resumen del paso
-  // 4 (antes de pagar) y para el mensaje de confirmación del paso 5.
-  // `reciboVisible` es solo para la caja "Recibís:" (Confirmación):
-  // camino Colegio usa "· llega el {fecha}" ahí, y "(Colegio, llega el
-  // {fecha})" en el resto (resumen del paso 4, mensaje de WhatsApp).
+  // de Pagar con Mercado Pago (antes de pagar).
   const reciboElegido: ReciboElegido | null =
     recibe === 'retiro' && retiroModo === 'red'
       ? { modo: 'red', sucursal: farmaciaRed }
@@ -659,7 +662,6 @@ export default function Checkout({
             ? { modo: 'envio', direccion: direccionCorta }
             : null;
   const recibo = reciboElegido ? descripcionRecibo(reciboElegido) : '';
-  const reciboVisible = reciboElegido ? reciboMostrado(reciboElegido) : '';
 
   // Resumen corto de 2 líneas para el paso 4 con Mercado Pago: qué eligió
   // y a qué celular le avisamos, para que la pantalla tenga sentido antes
@@ -678,41 +680,52 @@ export default function Checkout({
   }
   if (celular.trim()) resumenPaso4.push(`Te avisamos al ${celular.trim()}`);
 
-  if (paso === 3) {
+  if (paso === 2 && recibe) {
     const barraTexto =
       recibe === 'retiro'
         ? 'Tratamiento (retiro sin cargo)'
         : payload.envioAdentro
           ? 'Tratamiento (envío incluido en el precio)'
-          : `Tratamiento + envío a ${tarifaEncontrada ? tituloLocalidad(tarifaEncontrada.l) : ''}`;
+          : `Tratamiento + envío a ${tituloLocalidad(envioLocalidadTexto.trim())}`;
     contenido = (
       <Paso3Pago
         cotizacion={payload.o}
+        recibe={recibe}
         barraTexto={barraTexto}
         totalMostrado={pago === 'cuotas' ? t.cuotas : t.contado}
         contado={t.contado}
         cuota={t.cuota}
         pago={pago}
         onElegirPago={(p) => campo('pago', p)}
+        celular={celular}
+        setCelular={(v) => campo('celular', v)}
+        celularDeMalvinas={payload.paciente?.celular}
+        referencias={referencias}
+        setReferencias={(v) => campo('referencias', v)}
+        onBlurGuardar={guardarContacto}
         whatsapp={whatsapp}
         errorContacto={errorContacto}
         onReintentarContacto={guardarContacto}
-        onSiguiente={() => irA(4)}
+        onSiguiente={() => {
+          guardarContacto();
+          irA(3);
+        }}
         onVolver={volver}
       />
     );
   }
 
-  if (paso === 4) {
+  if (paso === 3) {
     contenido = (
       <Paso4Pagar
         cotizacion={payload.o}
+        nombre={payload.n}
         pago={pago}
         monto={pago === 'cuotas' ? t.cuotas : t.contado}
-        comprobanteRecibido={comprobanteRecibido && !comprobanteListo}
-        subiendo={subiendo}
-        errorComprobante={errorComprobante}
-        onEnviarComprobante={enviarComprobante}
+        cuota={t.cuota}
+        comprobanteRecibido={comprobanteRecibido}
+        enviandoAviso={enviandoAviso}
+        onEnviarComprobante={avisarComprobanteEnviado}
         cargandoMP={cargandoMP}
         errorMP={errorMP}
         onPagarMP={pagarConMP}
@@ -723,39 +736,8 @@ export default function Checkout({
     );
   }
 
-  if (paso === 5) {
-    const mensaje = mensajeConfirmacion({
-      nombre: payload.n,
-      o: payload.o,
-      accion: `transferir ${formatoPeso(t.contado)} al alias pill.ar y subí el comprobante`,
-      recibo,
-      celular: celular.trim() || 's/d',
-    });
-    contenido = (
-      <Paso5Confirmacion
-        nombre={payload.n}
-        monto={t.contado}
-        recibo={reciboVisible}
-        celular={celular.trim()}
-        mensajeWhatsApp={mensaje}
-        whatsapp={whatsapp}
-        farmaciaRedInfo={
-          recibe === 'retiro' && retiroModo === 'red'
-            ? FARMACIAS_RED.find((f) => f.nombre === farmaciaRed)
-            : undefined
-        }
-        colegioInfo={
-          recibe === 'retiro' && retiroModo === 'colegio'
-            ? { localidad: colegioLocalidad.trim(), o: payload.o, nombre: payload.n }
-            : undefined
-        }
-        mostrarBadraInfo={recibe === 'retiro' && retiroModo === 'badra'}
-      />
-    );
-  }
-
   return (
-    <div className={`tarjeta fade-paso flex min-h-[520px] flex-col${paso === 5 ? ' text-center' : ''}`}>
+    <div className="tarjeta fade-paso flex min-h-[520px] flex-col">
       {contenido}
     </div>
   );

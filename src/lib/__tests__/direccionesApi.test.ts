@@ -127,6 +127,7 @@ test('detalleDireccion: respuesta OK — lee addressComponents y location', asyn
       { longText: 'Avenida Colón', types: ['route'] },
       { longText: 'Córdoba', types: ['locality', 'political'] },
       { longText: 'Córdoba', types: ['administrative_area_level_1', 'political'] },
+      { longText: '5000', types: ['postal_code'] },
     ],
   }) as typeof fetch;
 
@@ -137,6 +138,7 @@ test('detalleDireccion: respuesta OK — lee addressComponents y location', asyn
     altura: '1234',
     localidadGoogle: 'Córdoba',
     provinciaGoogle: 'Córdoba',
+    codigoPostal: '5000',
     formateada: 'Av. Colón 1234, Córdoba, Argentina',
     lat: -31.4,
     lng: -64.18,

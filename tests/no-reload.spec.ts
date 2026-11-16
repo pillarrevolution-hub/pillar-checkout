@@ -33,15 +33,20 @@ function contarRequestsDeDocumento(requests: Request[]) {
 }
 
 async function irAPaso1(page: Page) {
-  await page.getByRole('button', { name: /pagar mi tratamiento/i }).click();
+  await page.getByRole('button', { name: /continuar con mi tratamiento/i }).click();
   await expect(page.getByText('¿Cómo querés recibirlo?')).toBeVisible();
 }
 
-async function irAPaso2RetiroRed(page: Page) {
+// C2 (14-nov): el selector de sucursal RED ya no vive en un Paso 2
+// aparte — se despliega en el acordeón del Paso 1. El siguiente paso
+// real después de elegirla es "¿Cómo querés pagar?" (celular +
+// comentarios, fusionado con el viejo Paso 2 en C2).
+async function irAPasoPagoRetiroRed(page: Page) {
   await page.getByRole('radio', { name: /Lo retiro en una farmacia/i }).click();
-  await page.getByRole('radio', { name: /Córdoba capital/i }).click();
+  await page.getByRole('radio', { name: /Córdoba capital · Farmacias RED/i }).click();
+  await page.selectOption('#farmacia-red', { index: 1 });
   await page.locator('.btn-siguiente').click();
-  await expect(page.getByText('¿En qué Farmacia RED lo retirás?')).toBeVisible();
+  await expect(page.getByText('¿Cómo querés pagar?')).toBeVisible();
 }
 
 test.describe('Sin parpadeo al volver — cero requests', () => {
@@ -50,12 +55,12 @@ test.describe('Sin parpadeo al volver — cero requests', () => {
     const marca = await marcarCarga(page);
 
     await irAPaso1(page);
-    await irAPaso2RetiroRed(page);
+    await irAPasoPagoRetiroRed(page);
 
     const requests: Request[] = [];
     page.on('request', (r) => requests.push(r));
 
-    await page.goBack(); // paso 2 -> paso 1
+    await page.goBack(); // pago -> paso 1
     await expect(page.getByText('¿Cómo querés recibirlo?')).toBeVisible();
     await page.goBack(); // paso 1 -> Home
     await expect(page.getByText('Hola,')).toBeVisible();
@@ -70,7 +75,7 @@ test.describe('Sin parpadeo al volver — cero requests', () => {
     const marca = await marcarCarga(page);
 
     await irAPaso1(page);
-    await irAPaso2RetiroRed(page);
+    await irAPasoPagoRetiroRed(page);
 
     const requests: Request[] = [];
     page.on('request', (r) => requests.push(r));

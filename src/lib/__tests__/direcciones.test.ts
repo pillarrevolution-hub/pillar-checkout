@@ -47,8 +47,24 @@ test('leerDireccionGoogle: con locality', () => {
     { longText: 'Avenida Colón', types: ['route'] },
     { longText: 'Córdoba', types: ['locality', 'political'] },
     { longText: 'Córdoba', types: ['administrative_area_level_1', 'political'] },
+    { longText: '5000', types: ['postal_code'] },
   ]);
-  assert.deepEqual(r, { calle: 'Avenida Colón', altura: '1234', localidadGoogle: 'Córdoba', provinciaGoogle: 'Córdoba' });
+  assert.deepEqual(r, {
+    calle: 'Avenida Colón',
+    altura: '1234',
+    localidadGoogle: 'Córdoba',
+    provinciaGoogle: 'Córdoba',
+    codigoPostal: '5000',
+  });
+});
+
+test('leerDireccionGoogle: sin postal_code — código postal vacío (queda editable)', () => {
+  const r = leerDireccionGoogle([
+    { longText: '1234', types: ['street_number'] },
+    { longText: 'Avenida Colón', types: ['route'] },
+    { longText: 'Córdoba', types: ['locality', 'political'] },
+  ]);
+  assert.equal(r.codigoPostal, '');
 });
 
 test('leerDireccionGoogle: sin locality pero con administrative_area_level_2 — cae en cascada', () => {

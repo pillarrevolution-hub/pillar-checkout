@@ -58,6 +58,7 @@ export function leerDireccionGoogle(componentes: GoogleAddressComponent[]): {
   altura: string;
   localidadGoogle: string;
   provinciaGoogle: string;
+  codigoPostal: string;
 } {
   const porTipo = (tipo: string) => componentes.find((c) => c.types?.includes(tipo));
   return {
@@ -66,5 +67,8 @@ export function leerDireccionGoogle(componentes: GoogleAddressComponent[]): {
     localidadGoogle:
       porTipo('locality')?.longText ?? porTipo('sublocality')?.longText ?? porTipo('administrative_area_level_2')?.longText ?? '',
     provinciaGoogle: porTipo('administrative_area_level_1')?.longText ?? '',
+    // B3 (16-nov): el código postal ya no se valida a mano — si Google lo
+    // trae, se usa; si no, el campo queda editable (ver domicilio.ts).
+    codigoPostal: porTipo('postal_code')?.longText ?? '',
   };
 }

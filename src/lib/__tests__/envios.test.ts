@@ -1,6 +1,35 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { matchUnicoDifuso, matchExactoLocalidad, sugerirLocalidades } from '../envios.ts';
+import { matchUnicoDifuso, matchExactoLocalidad, sugerirLocalidades, tarifaEnvio, TARIFA_CORDOBA, TARIFA_RESTO } from '../envios.ts';
+
+test('tarifaEnvio: Córdoba capital paga la tarifa de Córdoba', () => {
+  assert.equal(tarifaEnvio('Córdoba'), TARIFA_CORDOBA);
+  assert.equal(TARIFA_CORDOBA, 15000);
+});
+
+test('tarifaEnvio: Alta Gracia (Córdoba, interior) paga la misma tarifa que la capital — es por PROVINCIA', () => {
+  assert.equal(tarifaEnvio('Córdoba'), TARIFA_CORDOBA);
+});
+
+test('tarifaEnvio: Rosario (Santa Fe) paga la tarifa del resto del país', () => {
+  assert.equal(tarifaEnvio('Santa Fe'), TARIFA_RESTO);
+  assert.equal(TARIFA_RESTO, 17000);
+});
+
+test('tarifaEnvio: Ciudad Autónoma de Buenos Aires paga la tarifa del resto del país', () => {
+  assert.equal(tarifaEnvio('Ciudad Autónoma de Buenos Aires'), TARIFA_RESTO);
+});
+
+test('tarifaEnvio: sin provincia (todavía no la resolvió Google ni el paciente) — null, no hay tarifa que mostrar', () => {
+  assert.equal(tarifaEnvio(''), null);
+  assert.equal(tarifaEnvio(null), null);
+  assert.equal(tarifaEnvio(undefined), null);
+});
+
+test('tarifaEnvio: tolera mayúsculas/tildes/espacios como el resto de envios.ts', () => {
+  assert.equal(tarifaEnvio('CORDOBA'), TARIFA_CORDOBA);
+  assert.equal(tarifaEnvio('  cordoba  '), TARIFA_CORDOBA);
+});
 
 const LOCALIDADES = ['Río Cuarto', 'Río Tercero', 'Río Segundo', 'Alta Gracia', 'Villa María'];
 
