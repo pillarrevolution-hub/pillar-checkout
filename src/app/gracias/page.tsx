@@ -1,5 +1,5 @@
 import { confirmarPagoDeRetorno } from '@/lib/aviso';
-import { linkWhatsApp, whatsappNumero } from '@/lib/datos';
+import { obtenerDatos, linkWhatsApp, whatsappNumero } from '@/lib/datos';
 import { formatoPeso } from '@/lib/firma';
 import { mensajeConfirmacion, mensajeComprobanteTransferencia } from '@/lib/mensajes';
 import { FARMACIAS_RED } from '@/lib/farmaciasRed';
@@ -26,12 +26,12 @@ export default async function Gracias({
     payment_id?: string;
     collection_id?: string;
     transferencia?: string;
-    // C5 (16-nov): solo para el camino transferencia — Checkout.tsx los
-    // manda en la URL porque acá (server component) no hay estado del
-    // checkout ni Malvinas de donde sacarlos.
-    nombre?: string;
+    // C5b (16-nov): solo para el camino transferencia — `o` + `t` son el
+    // MISMO par firmado del link del checkout; nombre y monto se piden a
+    // checkout-data con ellos (ver obtenerDatos), nunca viajan sueltos
+    // por la URL.
     o?: string;
-    monto?: string;
+    t?: string;
   };
 }) {
   const paymentId = searchParams.payment_id ?? searchParams.collection_id;
@@ -48,13 +48,19 @@ export default async function Gracias({
   // que `aprobado` siempre es false.
   const transferencia = !aprobado && searchParams.transferencia === '1';
   if (transferencia) {
-    const nombre = searchParams.nombre?.trim() || '';
     const oTransferencia = Number(searchParams.o);
-    const montoTransferencia = Number(searchParams.monto);
+    // C5b (16-nov): nombre y monto se piden a checkout-data con el mismo
+    // token firmado del link (no viajan por la URL) — si `t` no valida
+    // (link viejo, o manipulado), `datos` es null y se muestra la
+    // versión genérica sin datos del paciente.
+    const datos =
+      Number.isFinite(oTransferencia) && searchParams.t
+        ? await obtenerDatos(oTransferencia, searchParams.t)
+        : null;
     const numero = whatsappNumero();
     const wspReenvio =
-      numero && nombre && Number.isFinite(oTransferencia) && Number.isFinite(montoTransferencia)
-        ? linkWhatsApp(numero, mensajeComprobanteTransferencia({ nombre, monto: montoTransferencia, cotizacion: oTransferencia }))
+      numero && datos
+        ? linkWhatsApp(numero, mensajeComprobanteTransferencia({ nombre: datos.n, monto: datos.tr, cotizacion: datos.o }))
         : null;
     return (
       <div className="tarjeta text-center">
@@ -62,7 +68,7 @@ export default async function Gracias({
         <div className="mb-3 flex justify-center">
           <IconCheck className="h-12 w-12" />
         </div>
-        <h1 className="font-sans text-3xl font-bold text-tinta">{nombre ? `Gracias, ${nombre}.` : '¡Gracias!'}</h1>
+        <h1 className="font-sans text-3xl font-bold text-tinta">{datos?.n ? `Gracias, ${datos.n}.` : '¡Gracias!'}</h1>
         <p className="mt-2 text-[15px] leading-relaxed text-slate-600">
           Cuando recibamos tu comprobante por WhatsApp te confirmamos el pago.
         </p>
@@ -102,7 +108,6 @@ export default async function Gracias({
   // confirmó que se pagó), no por la metadata `tipo` — más robusto si
   // algún día no coincidieran.
   const esCuotas = !!resumen && resumen.installments > 1;
-  const contadoPagado = resumen ? resumen.lista - resumen.descuento : 0;
   const hayEnvio = !!resumen?.envioLocalidad;
 
   if (pendiente) {
@@ -132,10 +137,14 @@ export default async function Gracias({
         {aprobado && resumen ? (
           esCuotas ? (
             <>
-              Pagaste 3 cuotas de {formatoPeso(resumen.cuota)} con Mercado Pago · Total {formatoPeso(resumen.lista)}.
+              {/* C5b (16-nov): UN solo "Total" en toda la pantalla — lo
+                  que MP cobró de verdad (tratamiento + envío si hubo),
+                  mismo número que cierra el desglose de abajo. */}
+              Pagaste 3 cuotas de {formatoPeso(Math.round(resumen.monto / 3))} con Mercado Pago · Total{' '}
+              {formatoPeso(resumen.monto)}.
             </>
           ) : (
-            <>Pagaste {formatoPeso(contadoPagado)} con Mercado Pago.</>
+            <>Pagaste {formatoPeso(resumen.monto)} con Mercado Pago.</>
           )
         ) : (
           'Ya registramos tu pago y tu pedido entra en elaboración. ¡Gracias por confiar en PILL.AR!'

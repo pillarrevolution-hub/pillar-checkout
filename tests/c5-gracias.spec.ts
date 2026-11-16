@@ -32,11 +32,17 @@ async function borradorSigueAhi(page: Page, o: number): Promise<boolean> {
 }
 
 test.describe('C5 — /gracias según el medio de pago y la modalidad (390px)', () => {
-  test('transferencia + retiro: saludo con nombre, botón "Abrir WhatsApp", sin desglose, borrador borrado', async ({ page }) => {
+  test('transferencia + retiro: saludo con nombre (leído de checkout-data por token), botón "Abrir WhatsApp", borrador borrado', async ({
+    page,
+  }) => {
     await conBorradorSembrado(page, 164);
-    await page.goto('/gracias?transferencia=1&nombre=Juana&o=164&monto=70822');
+    // C5b: el stub de Malvinas no valida la firma (solo responde por id),
+    // así que cualquier token con la FORMA correcta (12/32 hex) alcanza
+    // para probar el camino "válido" — el nombre/monto salen SIEMPRE de
+    // checkout-data (ZZZ Prueba Claude / $70.822 para o=164), nunca de la URL.
+    await page.goto('/gracias?transferencia=1&o=164&t=aaaaaaaaaaaa');
 
-    await expect(page.getByRole('heading', { name: 'Gracias, Juana.' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Gracias, ZZZ Prueba Claude.' })).toBeVisible();
     await expect(page.getByText('Cuando recibamos tu comprobante por WhatsApp te confirmamos el pago.')).toBeVisible();
     const boton = page.getByRole('link', { name: 'Abrir WhatsApp' });
     await expect(boton).toBeVisible();
@@ -47,13 +53,23 @@ test.describe('C5 — /gracias según el medio de pago y la modalidad (390px)', 
     expect(await borradorSigueAhi(page, 164)).toBe(false);
   });
 
-  test('transferencia + envío: mismo saludo (el medio no cambia el texto, la modalidad la decide el desglose — acá no hay porque no pasa por MP)', async ({
-    page,
-  }) => {
+  test('transferencia + envío: mismo saludo, nombre y cotización de checkout-data (o=166)', async ({ page }) => {
     await conBorradorSembrado(page, 166);
-    await page.goto('/gracias?transferencia=1&nombre=Juana&o=166&monto=87822');
-    await expect(page.getByRole('heading', { name: 'Gracias, Juana.' })).toBeVisible();
+    await page.goto('/gracias?transferencia=1&o=166&t=aaaaaaaaaaaa');
+    await expect(page.getByRole('heading', { name: 'Gracias, ZZZ Prueba Claude.' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Abrir WhatsApp' })).toHaveAttribute('href', /cotizaci%C3%B3n%20%23166/);
     expect(await borradorSigueAhi(page, 166)).toBe(false);
+  });
+
+  test('transferencia con token inválido: versión genérica sin datos del paciente, sin botón de WhatsApp', async ({ page }) => {
+    await conBorradorSembrado(page, 164);
+    // Token con la forma correcta pero para una cotización que no existe
+    // en el stub — equivale a "no validó" (checkout-data responde 404).
+    await page.goto('/gracias?transferencia=1&o=999&t=aaaaaaaaaaaa');
+
+    await expect(page.getByRole('heading', { name: '¡Gracias!' })).toBeVisible();
+    await expect(page.getByText('Cuando recibamos tu comprobante por WhatsApp te confirmamos el pago.')).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Abrir WhatsApp' })).toHaveCount(0);
   });
 
   test('Mercado Pago contado + retiro RED: "¡Listo, Juana!", Pagaste $70.822, sin desglose, Malvinas recibe cuotas=1 sin envío', async ({
@@ -76,11 +92,13 @@ test.describe('C5 — /gracias según el medio de pago y la modalidad (390px)', 
       .toMatchObject({ cuotas: 1, envioMonto: 0, retiroModo: 'red' });
   });
 
-  test('Mercado Pago contado + envío Rosario: Pagaste $70.822, desglose con descuento y envío, Total $87.822', async ({ page }) => {
+  test('Mercado Pago contado + envío Rosario: Pagaste $87.822 (incluye envío), desglose con descuento y mismo Total', async ({
+    page,
+  }) => {
     await conBorradorSembrado(page, 166);
     await page.goto('/gracias?payment_id=9002');
 
-    await expect(page.getByText('Pagaste $70.822 con Mercado Pago.')).toBeVisible();
+    await expect(page.getByText('Pagaste $87.822 con Mercado Pago.')).toBeVisible();
     await expect(page.getByText('Tratamiento', { exact: true })).toBeVisible();
     await expect(page.getByText('$83.320', { exact: false })).toBeVisible();
     await expect(page.getByText('Descuento 15%')).toBeVisible();
@@ -102,11 +120,14 @@ test.describe('C5 — /gracias según el medio de pago y la modalidad (390px)', 
     await page.screenshot({ path: join(DIR_CAPTURAS, 'c5-mp-cuotas-retiro-390.png') });
   });
 
-  test('Mercado Pago 3 cuotas + envío Rosario: desglose sin línea de descuento, Total $100.320', async ({ page, request }) => {
+  test('Mercado Pago 3 cuotas + envío Rosario: cuota y Total incluyen el envío (único Total en toda la pantalla)', async ({
+    page,
+    request,
+  }) => {
     await conBorradorSembrado(page, 166);
     await page.goto('/gracias?payment_id=9004');
 
-    await expect(page.getByText('Pagaste 3 cuotas de $27.773 con Mercado Pago · Total $83.320.')).toBeVisible();
+    await expect(page.getByText('Pagaste 3 cuotas de $33.440 con Mercado Pago · Total $100.320.')).toBeVisible();
     await expect(page.getByText('Tratamiento', { exact: true })).toBeVisible();
     await expect(page.getByText('Descuento 15%')).toHaveCount(0);
     await expect(page.getByText('Envío a Rosario, Santa Fe')).toBeVisible();

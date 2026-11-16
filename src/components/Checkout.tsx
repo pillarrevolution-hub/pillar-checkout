@@ -527,15 +527,15 @@ export default function Checkout({
     } catch {
       // No bloquea: el comprobante ya le llegó a Atención por WhatsApp.
     } finally {
-      // C5 (16-nov): nombre/o/monto viajan en la URL para que /gracias
-      // pueda armar el mismo mensaje de WhatsApp de C4 si el paciente
-      // cerró la pestaña sin mandarlo — /gracias es un server component,
-      // no tiene el estado del checkout.
+      // C5b (16-nov): /gracias pide nombre/monto a checkout-data con el
+      // MISMO token firmado del link (fuente.t) en vez de confiar en
+      // query params sueltos — así no hace falta mandar nombre/monto por
+      // la URL, igual que el camino de Mercado Pago no confía en lo que
+      // venga de afuera.
       const params = new URLSearchParams({
         transferencia: '1',
-        nombre: payload.n,
         o: String(payload.o),
-        monto: String(Math.round(t.contado)),
+        t: fuente.t,
       });
       window.location.href = `/gracias?${params.toString()}`;
     }
