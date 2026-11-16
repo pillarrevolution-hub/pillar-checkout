@@ -58,6 +58,13 @@ function leerBody(req) {
   });
 }
 
+// C4 (16-nov): el aviso de "Ya envié el comprobante" por WhatsApp —
+// Playwright no puede leer lo que llega server-to-server, así que se
+// guarda el último body recibido para que el test lo pida por
+// /debug/ultimo-comprobante-externa (fetch directo al stub, sin pasar
+// por el navegador).
+let ultimoComprobanteExterna = null;
+
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   res.setHeader('Content-Type', 'application/json');
@@ -82,10 +89,19 @@ const server = createServer(async (req, res) => {
     return;
   }
 
-  if (req.method === 'POST' && /^\/api\/cotizaciones\/\d+\/comprobante-externa$/.test(url.pathname)) {
-    await leerBody(req);
+  const matchComprobanteExterna = url.pathname.match(/^\/api\/cotizaciones\/(\d+)\/comprobante-externa$/);
+  if (req.method === 'POST' && matchComprobanteExterna) {
+    const raw = await leerBody(req);
+    const body = JSON.parse(raw || '{}');
+    ultimoComprobanteExterna = { cotizacion: Number(matchComprobanteExterna[1]), body };
     res.writeHead(200);
     res.end(JSON.stringify({ ok: true }));
+    return;
+  }
+
+  if (req.method === 'GET' && url.pathname === '/debug/ultimo-comprobante-externa') {
+    res.writeHead(200);
+    res.end(JSON.stringify(ultimoComprobanteExterna));
     return;
   }
 

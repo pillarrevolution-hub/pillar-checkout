@@ -2,11 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verificarLink, type PayloadCheckout } from '@/lib/firma';
 import { obtenerDatos } from '@/lib/datos';
 
-// Comprobante de transferencia subido por el paciente (v2.3): el archivo
-// va en base64 al server de Malvinas (comprobante-externa, secreto
-// compartido), que lo guarda junto al pedido para que Atención verifique
-// la plata y confirme con ✅ PAGADO. Acepta las dos formas del link (corto
-// {c,t} y viejo {p,t}) — sin firma válida no se guarda nada.
+// Aviso de transferencia por WhatsApp (C4, 16-nov): se eliminó la subida
+// de archivo — el paciente manda el comprobante por WhatsApp y esto solo
+// le avisa a Malvinas que lo hizo, para que Atención sepa que hay una
+// transferencia por verificar. Reenvía a comprobante-externa con
+// `canal: 'whatsapp'` y SIN archivo; Malvinas todavía no acepta ese caso
+// (ver DESIGN.md, "Malvinas: aceptar comprobante-externa sin archivo") y
+// devuelve 400 hasta que se actualice el repo padre. Por eso nunca
+// bloquea al paciente: cualquier respuesta que no sea 200 se loguea
+// server-side (para no perder el seguimiento) y el checkout sigue a
+// /gracias igual — el paciente YA le mandó el comprobante a Atención por
+// WhatsApp, eso no depende de este aviso.
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
 
@@ -21,30 +27,33 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Este pedido ya está pago.' }, { status: 409 });
   }
 
-  const nombreArchivo = typeof body?.nombreArchivo === 'string' ? body.nombreArchivo.slice(0, 200) : '';
-  const mime = typeof body?.mime === 'string' ? body.mime : '';
-  const datosBase64 = typeof body?.datosBase64 === 'string' ? body.datosBase64 : '';
-  if (!datosBase64 || !mime) {
-    return NextResponse.json({ error: 'Falta el archivo' }, { status: 400 });
-  }
+  const o = payload.o;
+  const nombre = payload.n ?? '';
+  const celular = typeof body?.celular === 'string' ? body.celular.trim().slice(0, 60) : '';
 
   const malvinas = (process.env.MALVINAS_URL ?? '').replace(/\/$/, '');
   const secreto = process.env.CHECKOUT_SECRET ?? '';
   if (!malvinas || !secreto) {
-    console.error('comprobante: falta MALVINAS_URL o CHECKOUT_SECRET en las variables de entorno');
-    return NextResponse.json({ error: 'No pudimos guardar el comprobante — probá de nuevo en un ratito' }, { status: 500 });
+    console.warn(`comprobante: falta MALVINAS_URL o CHECKOUT_SECRET — no se avisó a Malvinas (o=${o})`);
+    return NextResponse.json({ ok: true });
   }
 
-  const res = await fetch(`${malvinas}/api/cotizaciones/${payload.o}/comprobante-externa`, {
+  const res = await fetch(`${malvinas}/api/cotizaciones/${o}/comprobante-externa`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-checkout-secret': secreto },
-    body: JSON.stringify({ nombreArchivo, mime, datosBase64 }),
-  }).catch(() => null);
+    body: JSON.stringify({ canal: 'whatsapp', celular, nombre }),
+  }).catch((e) => {
+    console.warn(`comprobante: no se pudo avisar a Malvinas (o=${o}):`, e);
+    return null;
+  });
 
-  if (!res) return NextResponse.json({ error: 'No pudimos guardar el comprobante — probá de nuevo' }, { status: 502 });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    return NextResponse.json({ error: data?.error ?? 'No pudimos guardar el comprobante' }, { status: res.status });
+  if (!res || !res.ok) {
+    const data = res ? await res.json().catch(() => ({})) : null;
+    console.warn(
+      `comprobante: Malvinas no confirmó el aviso por WhatsApp (o=${o}, status=${res?.status ?? 'sin respuesta'}):`,
+      data
+    );
   }
+
   return NextResponse.json({ ok: true });
 }

@@ -33,3 +33,11 @@ export function linkCheckoutTest(cotizacion: number = COTIZACION_TEST): string {
   const firma = createHmac('sha256', secreto).update(`c|${cotizacion}`).digest('hex').slice(0, 12);
   return `/c/${cotizacion}/${firma}`;
 }
+
+// C4 (16-nov): mismo número que usa el checkout real (WHATSAPP_NUMERO) —
+// para que el test de "Enviar comprobante por WhatsApp" pueda verificar
+// el href de wa.me sin hardcodear el número de la farmacia en el código.
+export const WHATSAPP_NUMERO_TEST = (env.WHATSAPP_NUMERO ?? process.env.WHATSAPP_NUMERO ?? '').replace(
+  /[^\d]/g,
+  ''
+);

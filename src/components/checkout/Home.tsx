@@ -8,7 +8,6 @@ export default function Home({
   cuotaSinEnvio,
   whatsapp,
   comprobanteRecibido,
-  comprobanteListo,
   onEmpezar,
 }: {
   nombre: string;
@@ -17,7 +16,6 @@ export default function Home({
   cuotaSinEnvio: number;
   whatsapp: string | null;
   comprobanteRecibido: boolean;
-  comprobanteListo: boolean;
   onEmpezar: () => void;
 }) {
   // El "15%" tiene que ser siempre cierto (Checkout.tsx deriva `li` de
@@ -34,11 +32,11 @@ export default function Home({
         tecnología PILL.AR.
       </p>
 
-      {comprobanteRecibido && !comprobanteListo && (
+      {comprobanteRecibido && (
         <div className="mt-4 rounded-xl border border-violet-200 bg-violet-50 p-4 text-[14px] leading-relaxed text-violet-900">
-          <b>Ya recibimos tu comprobante</b> — lo estamos verificando y te confirmamos por
-          WhatsApp. Si necesitás subir otro (por ejemplo, si el primero salió mal), podés hacerlo
-          de nuevo siguiendo los mismos pasos.
+          <b>Ya nos avisaste que transferiste</b> — lo estamos verificando y te confirmamos por
+          WhatsApp. Si necesitás avisarnos de nuevo (por ejemplo, si transferiste otra vez),
+          podés hacerlo por WhatsApp las veces que haga falta.
         </div>
       )}
 

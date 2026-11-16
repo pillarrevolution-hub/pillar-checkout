@@ -19,7 +19,13 @@ export const dynamic = 'force-dynamic';
 export default async function Gracias({
   searchParams,
 }: {
-  searchParams: { pendiente?: string; status?: string; payment_id?: string; collection_id?: string };
+  searchParams: {
+    pendiente?: string;
+    status?: string;
+    payment_id?: string;
+    collection_id?: string;
+    transferencia?: string;
+  };
 }) {
   const paymentId = searchParams.payment_id ?? searchParams.collection_id;
   const { aprobado, resumen } = await confirmarPagoDeRetorno(paymentId);
@@ -29,6 +35,26 @@ export default async function Gracias({
     (searchParams.pendiente === '1' ||
       searchParams.status === 'pending' ||
       searchParams.status === 'in_process');
+
+  // C4 (16-nov): "Ya envié el comprobante" (transferencia, sin Mercado
+  // Pago de por medio) llega acá con ?transferencia=1 — nunca hay
+  // payment_id, así que `aprobado` siempre es false. Texto mínimo por
+  // ahora; se pule en C5.
+  const transferencia = !aprobado && searchParams.transferencia === '1';
+  if (transferencia) {
+    return (
+      <div className="tarjeta text-center">
+        <div className="mb-3 flex justify-center">
+          <IconCheck className="h-12 w-12" />
+        </div>
+        <h1 className="font-sans text-3xl font-bold text-tinta">¡Gracias!</h1>
+        <p className="mt-2 text-[15px] leading-relaxed text-slate-600">
+          Cuando recibamos tu comprobante por WhatsApp te confirmamos el pago.
+        </p>
+        <p className="mt-4 text-[13px] text-[#475569]">Podés cerrar esta página.</p>
+      </div>
+    );
+  }
 
   const numero = whatsappNumero();
   const mensaje =

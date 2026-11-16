@@ -1,6 +1,7 @@
 'use client';
 import { useRef, useState } from 'react';
 import { formatoPeso } from '@/lib/firma';
+import { linkWhatsApp } from '@/lib/datos';
 import { PasoFooter } from './ui';
 import { IconCheck } from '../icons';
 import type { Pago } from './Paso3Pago';
@@ -10,12 +11,12 @@ const TITULAR = 'PILL.AR S.A. · CUIT 30-71816734-1';
 
 export default function Paso4Pagar({
   cotizacion,
+  nombre,
   pago,
   monto,
   cuota,
   comprobanteRecibido,
-  subiendo,
-  errorComprobante,
+  enviandoAviso,
   onEnviarComprobante,
   cargandoMP,
   errorMP,
@@ -25,6 +26,7 @@ export default function Paso4Pagar({
   onVolver,
 }: {
   cotizacion: number;
+  nombre: string;
   pago: Pago;
   monto: number;
   // Total a pagar en 3 cuotas (= monto cuando pago === 'cuotas'), ya
@@ -32,9 +34,8 @@ export default function Paso4Pagar({
   // src/lib/precios.ts).
   cuota: number;
   comprobanteRecibido?: boolean;
-  subiendo: boolean;
-  errorComprobante: string;
-  onEnviarComprobante: (archivo: File) => void;
+  enviandoAviso: boolean;
+  onEnviarComprobante: () => void;
   cargandoMP: boolean;
   errorMP: string;
   onPagarMP: () => void;
@@ -42,8 +43,11 @@ export default function Paso4Pagar({
   whatsapp: string | null;
   onVolver: () => void;
 }) {
-  const [archivo, setArchivo] = useState<File | null>(null);
   const [copiado, setCopiado] = useState<'alias' | 'monto' | null>(null);
+  // C4 (16-nov): se eliminó la subida de archivo — el comprobante va por
+  // WhatsApp. Este flag solo controla cuándo aparece "Ya envié el
+  // comprobante" (recién después de que tocó el botón de WhatsApp).
+  const [whatsappAbierto, setWhatsappAbierto] = useState(false);
   const aliasRef = useRef<HTMLParagraphElement>(null);
   const montoRef = useRef<HTMLParagraphElement>(null);
 
@@ -68,6 +72,9 @@ export default function Paso4Pagar({
     }
   }
 
+  const mensajeComprobante = `Hola, soy ${nombre}. Realicé la transferencia de ${formatoPeso(monto)} por mi tratamiento, cotización #${cotizacion}. Adjunto el comprobante.`;
+  const linkComprobanteWhatsApp = whatsapp ? linkWhatsApp(whatsapp, mensajeComprobante) : null;
+
   return (
     <>
       {pago === 'transferencia' ? (
@@ -81,8 +88,9 @@ export default function Paso4Pagar({
 
           {comprobanteRecibido && (
             <div className="mt-4 rounded-xl border border-violet-200 bg-violet-50 p-4 text-[14px] leading-relaxed text-violet-900">
-              <b>Ya recibimos un comprobante tuyo</b> — lo estamos verificando. Si subís otro (por
-              ejemplo, si el primero salió mal), lo tomamos como el vigente.
+              <b>Ya nos avisaste que transferiste</b> — lo estamos verificando. Si necesitás
+              avisarnos de nuevo (por ejemplo, si transferiste otra vez), podés hacerlo por
+              WhatsApp las veces que haga falta.
             </div>
           )}
 
@@ -115,34 +123,30 @@ export default function Paso4Pagar({
               </button>
             </div>
 
-            <p className="pt-2 text-[18px] text-tinta">2. Cuando termines, subí la foto del comprobante:</p>
-            <label
-              className={`block cursor-pointer rounded-[14px] border-2 border-dashed p-6 text-center text-[15px] transition-colors focus-within:ring-2 focus-within:ring-[#3d8ee7] ${
-                archivo ? 'border-green-400 bg-green-50 text-green-800' : 'border-slate-300 text-[#475569] hover:border-[#3d8ee7]'
-              }`}
-            >
-              {archivo ? archivo.name : 'Elegir foto o PDF'}
-              <input
-                type="file"
-                accept="image/jpeg,image/png,application/pdf"
-                className="sr-only"
-                onChange={(e) => {
-                  setArchivo(e.target.files?.[0] ?? null);
-                  e.target.value = '';
-                }}
-              />
-            </label>
-            <button
-              className="btn-siguiente disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={!archivo || subiendo}
-              onClick={() => archivo && onEnviarComprobante(archivo)}
-            >
-              {subiendo ? 'Enviando…' : 'Enviar comprobante'}
-            </button>
-            {errorComprobante && (
-              <p className="text-center text-[16px] font-medium text-red-600" role="alert">
-                {errorComprobante}
-              </p>
+            <p className="pt-2 text-[18px] text-tinta">2. Cuando termines, avisanos por WhatsApp con el comprobante:</p>
+            {linkComprobanteWhatsApp && (
+              <a
+                href={linkComprobanteWhatsApp}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-siguiente"
+                onClick={() => setWhatsappAbierto(true)}
+              >
+                Enviar comprobante por WhatsApp
+              </a>
+            )}
+            <p className="text-center text-[14px] text-[#475569]">
+              Cuando lo recibamos, te confirmamos el pago por WhatsApp.
+            </p>
+
+            {whatsappAbierto && (
+              <button
+                className="btn-volver disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={enviandoAviso}
+                onClick={onEnviarComprobante}
+              >
+                {enviandoAviso ? 'Avisando…' : 'Ya envié el comprobante'}
+              </button>
             )}
           </div>
         </>

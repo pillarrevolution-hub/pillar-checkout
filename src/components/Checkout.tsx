@@ -10,15 +10,13 @@ import {
 import type { DatosCheckout } from '@/lib/datos';
 import { cuotaDeLista } from '@/lib/precios';
 import { buscarTarifa, tituloLocalidad } from '@/lib/envios';
-import { descripcionRecibo, mensajeConfirmacion, reciboMostrado, type ReciboElegido } from '@/lib/mensajes';
-import { FARMACIAS_RED } from '@/lib/farmaciasRed';
+import { descripcionRecibo, type ReciboElegido } from '@/lib/mensajes';
 import { RETIRO_LUGAR_BADRA } from '@/lib/farmaciaBadra';
 import { proximoRepartoColegio, fechaRepartoTexto } from '@/lib/colegioFechas';
 import Home from './checkout/Home';
 import Paso1Recibir from './checkout/Paso1Recibir';
 import Paso3Pago, { type Pago } from './checkout/Paso3Pago';
 import Paso4Pagar from './checkout/Paso4Pagar';
-import Paso5Confirmacion from './checkout/Paso5Confirmacion';
 
 // ---------------------------------------------------------------
 // Checkout PILL.AR v3 — UNA sola versión (decisión de Tomi): Home + paso
@@ -32,12 +30,15 @@ import Paso5Confirmacion from './checkout/Paso5Confirmacion';
 // pestaña).
 // ---------------------------------------------------------------
 
-// C2 (14-nov): bajó de 6 a 5 pantallas — el viejo Paso 2 ("Datos", los
+// C2 (14-nov): bajó de 6 a 4 pantallas — el viejo Paso 2 ("Datos", los
 // campos propios de cada modalidad) se fusionó con el Paso 1 (acordeón)
 // y con "¿Cómo querés pagar?" (celular + comentarios). Flujo numerado
-// (PasoHeader, "de 3"): 1 Recibir → 2 Pago → 3 Pagar; 0 Home y 4
-// Confirmación quedan sin número visible, como antes.
-type Paso = 0 | 1 | 2 | 3 | 4;
+// (PasoHeader, "de 3"): 1 Recibir → 2 Pago → 3 Pagar; 0 Home queda sin
+// número visible, como antes. C4 (16-nov): la confirmación de
+// transferencia dejó de ser una 5ª pantalla del wizard — "Ya envié el
+// comprobante" ahora navega afuera, a /gracias (mismo destino que vuelve
+// de Mercado Pago), así que el `Paso` más alto es 3.
+type Paso = 0 | 1 | 2 | 3;
 type Recibe = 'retiro' | 'envio' | null;
 type RetiroModo = 'red' | 'colegio' | 'badra' | '';
 
@@ -250,9 +251,7 @@ export default function Checkout({
   // real al que se vaya a volver.
   const [listo, setListo] = useState(false);
 
-  const [subiendo, setSubiendo] = useState(false);
-  const [errorComprobante, setErrorComprobante] = useState('');
-  const [comprobanteListo, setComprobanteListo] = useState(false);
+  const [enviandoAviso, setEnviandoAviso] = useState(false);
   const [cargandoMP, setCargandoMP] = useState(false);
   const [errorMP, setErrorMP] = useState('');
   const [errorContacto, setErrorContacto] = useState(false);
@@ -473,52 +472,24 @@ export default function Checkout({
     return () => window.removeEventListener('pageshow', onPageShow);
   }, []);
 
-  // Fotos de celular vienen de 5-10 MB y el límite del server es ~3.5 MB:
-  // las imágenes grandes se achican en el navegador (máx. 1800 px, JPEG)
-  // antes de subir. Los PDF van tal cual (con tope).
-  async function archivoABase64(file: File): Promise<{ base64: string; mime: string; nombre: string }> {
-    const esImagen = file.type === 'image/jpeg' || file.type === 'image/png';
-    if (esImagen && file.size > 900_000) {
-      const bitmap = await createImageBitmap(file);
-      const escala = Math.min(1, 1800 / Math.max(bitmap.width, bitmap.height));
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.round(bitmap.width * escala);
-      canvas.height = Math.round(bitmap.height * escala);
-      canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
-      return { base64: dataUrl.split(',')[1] ?? '', mime: 'image/jpeg', nombre: file.name.replace(/\.\w+$/, '') + '.jpg' };
-    }
-    if (file.size > 3_400_000) {
-      throw new Error('El archivo es muy pesado (máx. 3,5 MB). Probá con una foto o un PDF más liviano.');
-    }
-    const base64 = await new Promise<string>((resolve, reject) => {
-      const r = new FileReader();
-      r.onload = () => resolve(String(r.result).split(',')[1] ?? '');
-      r.onerror = reject;
-      r.readAsDataURL(file);
-    });
-    return { base64, mime: file.type, nombre: file.name };
-  }
-
-  async function enviarComprobante(archivo: File) {
-    setSubiendo(true);
-    setErrorComprobante('');
+  // C4 (16-nov): "Ya envié el comprobante" ya no sube ningún archivo — el
+  // paciente lo manda por WhatsApp. Esto solo le avisa a Malvinas (best
+  // effort: ver /api/comprobante) y después navega afuera del wizard, a
+  // /gracias, igual que al volver de Mercado Pago. Nunca frena al
+  // paciente: pase lo que pase con el aviso, siempre termina en /gracias.
+  async function avisarComprobanteEnviado() {
+    setEnviandoAviso(true);
     try {
       await guardarContacto();
-      const { base64, mime, nombre } = await archivoABase64(archivo);
-      const res = await fetch('/api/comprobante', {
+      await fetch('/api/comprobante', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...fuente, nombreArchivo: nombre, mime, datosBase64: base64 }),
+        body: JSON.stringify({ ...fuente, celular: celular.trim() }),
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error ?? 'No pudimos subir el comprobante — probá de nuevo');
-      setComprobanteListo(true);
-      irA(4);
-    } catch (e: any) {
-      setErrorComprobante(e.message ?? 'No pudimos subir el comprobante — probá de nuevo');
+    } catch {
+      // No bloquea: el comprobante ya le llegó a Atención por WhatsApp.
     } finally {
-      setSubiendo(false);
+      window.location.href = '/gracias?transferencia=1';
     }
   }
 
@@ -576,7 +547,6 @@ export default function Checkout({
         cuotaSinEnvio={cuotaDeLista(li)}
         whatsapp={whatsapp}
         comprobanteRecibido={comprobanteRecibido}
-        comprobanteListo={comprobanteListo}
         onEmpezar={() => irA(1)}
       />
     );
@@ -626,10 +596,7 @@ export default function Checkout({
   }
 
   // Cómo lo recibe, en una frase — la misma base para el resumen del paso
-  // 4 (antes de pagar) y para el mensaje de confirmación del paso 5.
-  // `reciboVisible` es solo para la caja "Recibís:" (Confirmación):
-  // camino Colegio usa "· llega el {fecha}" ahí, y "(Colegio, llega el
-  // {fecha})" en el resto (resumen del paso 4, mensaje de WhatsApp).
+  // de Pagar con Mercado Pago (antes de pagar).
   const reciboElegido: ReciboElegido | null =
     recibe === 'retiro' && retiroModo === 'red'
       ? { modo: 'red', sucursal: farmaciaRed }
@@ -641,7 +608,6 @@ export default function Checkout({
             ? { modo: 'envio', direccion: direccionCorta }
             : null;
   const recibo = reciboElegido ? descripcionRecibo(reciboElegido) : '';
-  const reciboVisible = reciboElegido ? reciboMostrado(reciboElegido) : '';
 
   // Resumen corto de 2 líneas para el paso 4 con Mercado Pago: qué eligió
   // y a qué celular le avisamos, para que la pantalla tenga sentido antes
@@ -699,13 +665,13 @@ export default function Checkout({
     contenido = (
       <Paso4Pagar
         cotizacion={payload.o}
+        nombre={payload.n}
         pago={pago}
         monto={pago === 'cuotas' ? t.cuotas : t.contado}
         cuota={t.cuota}
-        comprobanteRecibido={comprobanteRecibido && !comprobanteListo}
-        subiendo={subiendo}
-        errorComprobante={errorComprobante}
-        onEnviarComprobante={enviarComprobante}
+        comprobanteRecibido={comprobanteRecibido}
+        enviandoAviso={enviandoAviso}
+        onEnviarComprobante={avisarComprobanteEnviado}
         cargandoMP={cargandoMP}
         errorMP={errorMP}
         onPagarMP={pagarConMP}
@@ -716,39 +682,8 @@ export default function Checkout({
     );
   }
 
-  if (paso === 4) {
-    const mensaje = mensajeConfirmacion({
-      nombre: payload.n,
-      o: payload.o,
-      accion: `transferir ${formatoPeso(t.contado)} al alias pill.ar y subí el comprobante`,
-      recibo,
-      celular: celular.trim() || 's/d',
-    });
-    contenido = (
-      <Paso5Confirmacion
-        nombre={payload.n}
-        monto={t.contado}
-        recibo={reciboVisible}
-        celular={celular.trim()}
-        mensajeWhatsApp={mensaje}
-        whatsapp={whatsapp}
-        farmaciaRedInfo={
-          recibe === 'retiro' && retiroModo === 'red'
-            ? FARMACIAS_RED.find((f) => f.nombre === farmaciaRed)
-            : undefined
-        }
-        colegioInfo={
-          recibe === 'retiro' && retiroModo === 'colegio'
-            ? { localidad: colegioLocalidad.trim(), o: payload.o, nombre: payload.n }
-            : undefined
-        }
-        mostrarBadraInfo={recibe === 'retiro' && retiroModo === 'badra'}
-      />
-    );
-  }
-
   return (
-    <div className={`tarjeta fade-paso flex min-h-[520px] flex-col${paso === 4 ? ' text-center' : ''}`}>
+    <div className="tarjeta fade-paso flex min-h-[520px] flex-col">
       {contenido}
     </div>
   );
