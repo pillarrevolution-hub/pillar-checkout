@@ -133,7 +133,7 @@ export default async function Gracias({
       <h1 className="font-sans text-3xl font-bold text-tinta">
         {aprobado ? `¡Listo${resumen?.nombre ? `, ${resumen.nombre}` : ''}!` : '¡Pago recibido!'}
       </h1>
-      <p className="mt-2 text-[15px] leading-relaxed text-slate-600">
+      <p className="mt-2 text-[15px] tabular-nums leading-relaxed text-slate-600">
         {aprobado && resumen ? (
           esCuotas ? (
             <>

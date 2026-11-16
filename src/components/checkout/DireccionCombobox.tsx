@@ -448,7 +448,7 @@ export default function DireccionCombobox({
           </p>
           <div className="mt-3 flex flex-col gap-2 sm:flex-row">
             <button
-              className="min-h-[44px] flex-1 rounded-xl border border-amber-300 bg-white px-4 py-2.5 text-[14px] font-bold text-amber-900 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee7]"
+              className="min-h-[44px] flex-1 rounded-xl border border-amber-300 bg-white px-4 py-2.5 text-[14px] font-bold tabular-nums text-amber-900 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee7]"
               onClick={usarLocalidadGoogle}
             >
               Usar {avisoLocalidad.localidadGoogle}

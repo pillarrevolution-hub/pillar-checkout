@@ -169,7 +169,7 @@ export default function Paso4Pagar({
             </>
           )}
           {resumen && resumen.length > 0 && (
-            <div className="mt-4 rounded-xl bg-[#f1f5fa] p-4 text-[14px] leading-relaxed text-[#475569]">
+            <div className="mt-4 rounded-xl bg-[#f1f5fa] p-4 text-[14px] tabular-nums leading-relaxed text-[#475569]">
               {resumen.map((linea) => (
                 <p key={linea}>{linea}</p>
               ))}

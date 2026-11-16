@@ -135,7 +135,7 @@ export function CelularCampo({
         Te avisamos al {normalizado ? formatoCelular(normalizado) : celularDeMalvinas} ·{' '}
         <button
           type="button"
-          className="font-semibold text-[#2f6fbd] underline"
+          className="link-tap font-semibold text-[#2f6fbd] underline"
           onClick={() => setEditar(true)}
         >
           ¿No es tu número? Cambiarlo
