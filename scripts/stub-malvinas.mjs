@@ -72,6 +72,11 @@ let ultimoComprobanteExterna = null;
 // se guarda el último body de contacto-externa — /debug/ultimo-contacto-externa.
 let ultimoContactoExterna = null;
 
+// C5 (16-nov): /gracias avisa el pago aprobado acá (pagada-externa) al
+// volver de Mercado Pago — /debug/ultima-pagada-externa para que
+// Playwright vea qué le llegó sin pasar por el navegador.
+let ultimaPagadaExterna = null;
+
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   res.setHeader('Content-Type', 'application/json');
@@ -118,6 +123,22 @@ const server = createServer(async (req, res) => {
   if (req.method === 'GET' && url.pathname === '/debug/ultimo-comprobante-externa') {
     res.writeHead(200);
     res.end(JSON.stringify(ultimoComprobanteExterna));
+    return;
+  }
+
+  const matchPagadaExterna = url.pathname.match(/^\/api\/cotizaciones\/(\d+)\/pagada-externa$/);
+  if (req.method === 'POST' && matchPagadaExterna) {
+    const raw = await leerBody(req);
+    const body = JSON.parse(raw || '{}');
+    ultimaPagadaExterna = { cotizacion: Number(matchPagadaExterna[1]), body };
+    res.writeHead(200);
+    res.end(JSON.stringify({ ok: true }));
+    return;
+  }
+
+  if (req.method === 'GET' && url.pathname === '/debug/ultima-pagada-externa') {
+    res.writeHead(200);
+    res.end(JSON.stringify(ultimaPagadaExterna));
     return;
   }
 

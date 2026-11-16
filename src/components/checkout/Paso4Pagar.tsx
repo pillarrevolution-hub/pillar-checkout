@@ -2,6 +2,7 @@
 import { useRef, useState } from 'react';
 import { formatoPeso } from '@/lib/firma';
 import { linkWhatsApp } from '@/lib/datos';
+import { mensajeComprobanteTransferencia } from '@/lib/mensajes';
 import { PasoFooter } from './ui';
 import { IconCheck } from '../icons';
 import type { Pago } from './Paso3Pago';
@@ -72,7 +73,7 @@ export default function Paso4Pagar({
     }
   }
 
-  const mensajeComprobante = `Hola, soy ${nombre}. Realicé la transferencia de ${formatoPeso(monto)} por mi tratamiento, cotización #${cotizacion}. Adjunto el comprobante.`;
+  const mensajeComprobante = mensajeComprobanteTransferencia({ nombre, monto, cotizacion });
   const linkComprobanteWhatsApp = whatsapp ? linkWhatsApp(whatsapp, mensajeComprobante) : null;
 
   return (

@@ -10,6 +10,7 @@ import {
 import type { DatosCheckout } from '@/lib/datos';
 import { cuotaDeLista } from '@/lib/precios';
 import { tarifaEnvio, tituloLocalidad } from '@/lib/envios';
+import { claveDraft } from '@/lib/borrador';
 import { descripcionRecibo, type ReciboElegido } from '@/lib/mensajes';
 import { RETIRO_LUGAR_BADRA } from '@/lib/farmaciaBadra';
 import { proximoRepartoColegio, fechaRepartoTexto } from '@/lib/colegioFechas';
@@ -166,10 +167,6 @@ function reducerPaso(estado: Estado, accion: Accion): Estado {
     default:
       return estado;
   }
-}
-
-function claveDraft(o: number): string {
-  return `pillar-checkout-draft-${o}`;
 }
 
 function cargarDraft(o: number): Estado | null {
@@ -530,7 +527,17 @@ export default function Checkout({
     } catch {
       // No bloquea: el comprobante ya le llegó a Atención por WhatsApp.
     } finally {
-      window.location.href = '/gracias?transferencia=1';
+      // C5 (16-nov): nombre/o/monto viajan en la URL para que /gracias
+      // pueda armar el mismo mensaje de WhatsApp de C4 si el paciente
+      // cerró la pestaña sin mandarlo — /gracias es un server component,
+      // no tiene el estado del checkout.
+      const params = new URLSearchParams({
+        transferencia: '1',
+        nombre: payload.n,
+        o: String(payload.o),
+        monto: String(Math.round(t.contado)),
+      });
+      window.location.href = `/gracias?${params.toString()}`;
     }
   }
 

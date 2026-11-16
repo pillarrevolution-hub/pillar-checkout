@@ -1,7 +1,9 @@
 // Cliente mínimo de la API de Mercado Pago (sin SDK: dos llamadas).
 // Docs: https://www.mercadopago.com.ar/developers/es/reference
 
-const API = 'https://api.mercadopago.com';
+// Overridable solo para Playwright (scripts/stub-mp.mjs, C5): sin
+// `MP_API_URL` pega contra la API real de Mercado Pago, como siempre.
+const API = process.env.MP_API_URL ?? 'https://api.mercadopago.com';
 
 function token(): string {
   const t = process.env.MP_ACCESS_TOKEN;

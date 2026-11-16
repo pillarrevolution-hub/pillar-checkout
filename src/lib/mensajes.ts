@@ -1,4 +1,5 @@
 import { FARMACIA_BADRA, RETIRO_LUGAR_BADRA } from './farmaciaBadra.ts';
+import { formatoPeso } from './firma.ts';
 
 // Mensaje de WhatsApp YA ESCRITO para la confirmación (paso 5 en el
 // checkout — transferencia recién subida — y /gracias al volver de
@@ -12,6 +13,13 @@ export function mensajeConfirmacion(args: {
   celular: string;
 }): string {
   return `Hola! Soy ${args.nombre}, cotización #${args.o}. Acabo de ${args.accion}. Lo recibo: ${args.recibo}. Mi celular: ${args.celular}.`;
+}
+
+// Mensaje de WhatsApp del comprobante de transferencia (C4) — mismo
+// texto en Paso4Pagar.tsx y en /gracias (C5, botón "Abrir WhatsApp" por
+// si el paciente cerró la pestaña sin mandarlo).
+export function mensajeComprobanteTransferencia(args: { nombre: string; monto: number; cotizacion: number }): string {
+  return `Hola, soy ${args.nombre}. Realicé la transferencia de ${formatoPeso(args.monto)} por mi tratamiento, cotización #${args.cotizacion}. Adjunto el comprobante.`;
 }
 
 export type ReciboElegido =
