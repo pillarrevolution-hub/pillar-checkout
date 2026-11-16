@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { montoEnvio, total, verificarLink, type EleccionEnvio, type PayloadCheckout } from '@/lib/firma';
 import { obtenerDatos } from '@/lib/datos';
-import { buscarTarifa } from '@/lib/envios';
+import { tarifaEnvio } from '@/lib/envios';
 import { crearPreferencia } from '@/lib/mp';
 import { normalizarRetiroModo } from '@/lib/retiroModo';
 
 // Crea la preferencia de Mercado Pago (Checkout Pro). Acepta las dos
 // formas del link — corto {c, t} (busca datos VIVOS en Malvinas) y viejo
 // {p, t} (payload firmado en la URL) — y el monto SIEMPRE se calcula en
-// el servidor contra el tarifario vivo: el navegador no puede mandar un
-// precio propio. Si la cotización ya está paga, no se crea nada.
+// el servidor: el navegador no puede mandar un precio propio. B1
+// (16-nov): el envío a domicilio ya no busca una localidad en ningún
+// tarifario — el monto sale de `tarifaEnvio(provincia)` (dos tarifas
+// planas, Córdoba / resto del país), la misma regla que usa el checkout
+// para mostrar el precio. Si la cotización ya está paga, no se crea nada.
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
 
@@ -29,24 +32,25 @@ export async function POST(req: NextRequest) {
   const retiroModo = normalizarRetiroModo(body?.retiroModo);
   const retiroLugar = typeof body?.retiroLugar === 'string' ? body.retiroLugar.trim().slice(0, 80) : '';
   const envioLocalidadTexto = typeof body?.envioLocalidad === 'string' ? body.envioLocalidad.trim() : '';
+  const envioProvincia = typeof body?.envioProvincia === 'string' ? body.envioProvincia.trim() : '';
   const tipo: 'contado' | 'cuotas' = body?.tipo === 'cuotas' ? 'cuotas' : 'contado';
   const celular = typeof body?.celular === 'string' ? body.celular.trim().slice(0, 60) : '';
   const direccionTexto = typeof body?.direccionTexto === 'string' ? body.direccionTexto.trim().slice(0, 200) : '';
   const retiroFechaColegio = typeof body?.retiroFechaColegio === 'string' ? body.retiroFechaColegio.trim().slice(0, 80) : '';
 
   let eleccion: EleccionEnvio;
-  let envioLocalidadCanonica = '';
   let refEnvio = 'retiro';
 
   if (retiroModo) {
     eleccion = { modo: 'retiro' };
     refEnvio = retiroModo;
   } else if (envioLocalidadTexto) {
-    const tarifa = buscarTarifa(envioLocalidadTexto, payload.envios?.tarifas ?? []);
-    if (!tarifa) return NextResponse.json({ error: 'No encontramos esa localidad — volvé al paso anterior y probá de nuevo' }, { status: 400 });
-    envioLocalidadCanonica = tarifa.l;
-    eleccion = { modo: 'envio', monto: payload.envioAdentro ? 0 : tarifa.m };
-    refEnvio = tarifa.l;
+    const monto = tarifaEnvio(envioProvincia);
+    if (monto === null) {
+      return NextResponse.json({ error: 'Elegí la provincia de destino — volvé al paso anterior y probá de nuevo' }, { status: 400 });
+    }
+    eleccion = { modo: 'envio', monto: payload.envioAdentro ? 0 : monto };
+    refEnvio = envioLocalidadTexto;
   } else {
     return NextResponse.json({ error: 'Elegí cómo recibirlo' }, { status: 400 });
   }
@@ -66,7 +70,8 @@ export async function POST(req: NextRequest) {
         retiro_modo: retiroModo,
         retiro_lugar: retiroLugar,
         retiro_fecha_colegio: retiroFechaColegio,
-        envio_localidad: envioLocalidadCanonica,
+        envio_localidad: envioLocalidadTexto,
+        envio_provincia: envioProvincia,
         envio_monto: envioMonto,
         direccion_texto: direccionTexto,
         celular,

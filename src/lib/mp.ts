@@ -50,6 +50,7 @@ export async function crearPreferencia(args: {
     retiro_lugar: string;
     retiro_fecha_colegio: string;
     envio_localidad: string;
+    envio_provincia: string;
     envio_monto: number;
     direccion_texto: string;
     celular: string;

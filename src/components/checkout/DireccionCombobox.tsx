@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useId, useRef, useState } from 'react';
-import { buscarTarifa, tituloLocalidad, type TarifaEnvio } from '@/lib/envios';
+import { tarifaEnvio, tituloLocalidad } from '@/lib/envios';
 import { coincideAproximado, localidadesCoinciden } from '@/lib/direcciones';
 import { formatoPeso } from '@/lib/firma';
 import { IconCheck } from '../icons';
@@ -27,8 +27,12 @@ type DetalleGoogle = {
   provinciaGoogle: string;
   formateada: string;
 };
+// B1 (16-nov): ya no hay tarifa que matchear por localidad — cualquier
+// localidad de la Argentina es entregable, el monto sale de la
+// PROVINCIA (ver tarifaEnvio en @/lib/envios). `monto` acá es solo para
+// mostrarlo en el botón "Usar {localidad}" antes de apretarlo.
 type AvisoLocalidad =
-  | { tipo: 'localidad-distinta'; localidadGoogle: string; tarifaCanonica: string | null; montoGoogle: number | null }
+  | { tipo: 'localidad-distinta'; localidadGoogle: string; provinciaGoogle: string; monto: number | null }
   | { tipo: 'sin-altura' }
   | { tipo: 'sin-verificar' };
 
@@ -45,7 +49,7 @@ export default function DireccionCombobox({
   habilitado,
   localidad,
   provincia,
-  tarifas,
+  setProvincia,
   envioAdentro,
   calle,
   setCalle,
@@ -60,7 +64,10 @@ export default function DireccionCombobox({
   habilitado: boolean;
   localidad: string;
   provincia: string;
-  tarifas: TarifaEnvio[];
+  // B1: la provincia la resuelve este combobox (Google) o el `<select>`
+  // de Plan B que vive en Paso1Recibir — este componente solo la AVISA
+  // para arriba, nunca la pide como dato fijo.
+  setProvincia: (v: string | null) => void;
   envioAdentro?: boolean;
   calle: string;
   setCalle: (v: string) => void;
@@ -116,7 +123,9 @@ export default function DireccionCombobox({
       setIndiceActivo(-1);
       pendienteRef.current = null;
       seleccionadaRef.current = false;
+      setProvincia(null);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [calle]);
 
   function registrarFallo() {
@@ -189,13 +198,12 @@ export default function DireccionCombobox({
     setCalle(texto);
 
     if (!localidadesCoinciden(data.localidadGoogle, localidad)) {
-      const tarifaGoogle = buscarTarifa(data.localidadGoogle, tarifas);
       pendienteRef.current = data;
       setAvisoLocalidad({
         tipo: 'localidad-distinta',
         localidadGoogle: data.localidadGoogle,
-        tarifaCanonica: tarifaGoogle?.l ?? null,
-        montoGoogle: tarifaGoogle?.m ?? null,
+        provinciaGoogle: data.provinciaGoogle,
+        monto: tarifaEnvio(data.provinciaGoogle),
       });
       setDireccionVerificada(false);
       setDireccionConfirmadaTexto('');
@@ -206,6 +214,7 @@ export default function DireccionCombobox({
     setAvisoLocalidad(null);
     setDireccionVerificada(true);
     setDireccionConfirmadaTexto(data.formateada || texto);
+    setProvincia(data.provinciaGoogle || null);
   }
 
   async function pedirDetalle(placeId: string): Promise<DetalleGoogle | null> {
@@ -286,8 +295,9 @@ export default function DireccionCombobox({
   }
 
   function usarLocalidadGoogle() {
-    if (avisoLocalidad?.tipo !== 'localidad-distinta' || !avisoLocalidad.tarifaCanonica || !pendienteRef.current) return;
-    onUsarLocalidadGoogle(avisoLocalidad.tarifaCanonica);
+    if (avisoLocalidad?.tipo !== 'localidad-distinta' || !pendienteRef.current) return;
+    onUsarLocalidadGoogle(avisoLocalidad.localidadGoogle);
+    setProvincia(avisoLocalidad.provinciaGoogle || null);
     setDireccionVerificada(true);
     setDireccionConfirmadaTexto(pendienteRef.current.formateada || calle);
     setAvisoLocalidad(null);
@@ -300,6 +310,7 @@ export default function DireccionCombobox({
     setDireccionConfirmadaTexto('');
     setAvisoLocalidad(null);
     pendienteRef.current = null;
+    setProvincia(null);
     document.getElementById(id)?.focus();
   }
 
@@ -373,19 +384,16 @@ export default function DireccionCombobox({
           <p>
             Esa dirección parece estar en <b>{avisoLocalidad.localidadGoogle}</b>, no en {tituloLocalidad(localidad)}.
           </p>
-          {!avisoLocalidad.tarifaCanonica && (
-            <p className="mt-1">A {avisoLocalidad.localidadGoogle} todavía no llegamos con envío.</p>
-          )}
           <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-            {avisoLocalidad.tarifaCanonica && (
-              <button
-                className="min-h-[44px] flex-1 rounded-xl border border-amber-300 bg-white px-4 py-2.5 text-[14px] font-bold text-amber-900 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee7]"
-                onClick={usarLocalidadGoogle}
-              >
-                Usar {avisoLocalidad.localidadGoogle} · envío{' '}
-                {envioAdentro ? 'incluido en el precio' : formatoPeso(avisoLocalidad.montoGoogle ?? 0)}
-              </button>
-            )}
+            <button
+              className="min-h-[44px] flex-1 rounded-xl border border-amber-300 bg-white px-4 py-2.5 text-[14px] font-bold text-amber-900 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee7]"
+              onClick={usarLocalidadGoogle}
+            >
+              Usar {avisoLocalidad.localidadGoogle}
+              {avisoLocalidad.monto !== null && (
+                <> · envío {envioAdentro ? 'incluido en el precio' : formatoPeso(avisoLocalidad.monto)}</>
+              )}
+            </button>
             <button
               className="min-h-[44px] flex-1 rounded-xl border border-amber-300 bg-white px-4 py-2.5 text-[14px] font-bold text-amber-900 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee7]"
               onClick={corregirDireccion}

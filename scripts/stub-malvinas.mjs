@@ -31,9 +31,11 @@ const COTIZACION_165 = {
   paciente: { celular: '3512501234' },
 };
 
-// Con envíos (C2, 14-nov): tarifario mínimo para poder probar el camino
-// "Envío a domicilio" del acordeón del Paso 1 (164/165 no tienen
-// `envios`, así que esa opción queda deshabilitada para ellas a propósito).
+// Con envíos (C2, 14-nov): habilita el camino "Envío a domicilio" del
+// acordeón del Paso 1 (164/165 no tienen `envios`, así que esa opción
+// queda deshabilitada para ellas a propósito). `tarifas` es DEPRECADO
+// desde B1 (16-nov, envío a todo el país con tarifa plana por
+// provincia) — se deja tal cual para probar que el checkout la ignora.
 const COTIZACION_166 = {
   ...COTIZACION_164,
   o: 166,
@@ -65,6 +67,11 @@ function leerBody(req) {
 // por el navegador).
 let ultimoComprobanteExterna = null;
 
+// B1 (16-nov): para probar qué le llega a Malvinas con el envío a todo
+// el país (envioLocalidad en texto libre + envioProvincia + envioMonto),
+// se guarda el último body de contacto-externa — /debug/ultimo-contacto-externa.
+let ultimoContactoExterna = null;
+
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   res.setHeader('Content-Type', 'application/json');
@@ -82,10 +89,19 @@ const server = createServer(async (req, res) => {
     return;
   }
 
-  if (req.method === 'POST' && /^\/api\/cotizaciones\/\d+\/contacto-externa$/.test(url.pathname)) {
-    await leerBody(req);
+  const matchContactoExterna = url.pathname.match(/^\/api\/cotizaciones\/(\d+)\/contacto-externa$/);
+  if (req.method === 'POST' && matchContactoExterna) {
+    const raw = await leerBody(req);
+    const body = JSON.parse(raw || '{}');
+    ultimoContactoExterna = { cotizacion: Number(matchContactoExterna[1]), body };
     res.writeHead(200);
     res.end(JSON.stringify({ ok: true }));
+    return;
+  }
+
+  if (req.method === 'GET' && url.pathname === '/debug/ultimo-contacto-externa') {
+    res.writeHead(200);
+    res.end(JSON.stringify(ultimoContactoExterna));
     return;
   }
 

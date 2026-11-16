@@ -36,6 +36,9 @@ export async function avisarPagoAMalvinas(
       retiroModo: typeof m.retiro_modo === 'string' ? m.retiro_modo : '',
       retiroLugar: typeof m.retiro_lugar === 'string' ? m.retiro_lugar : '',
       envioLocalidad: typeof m.envio_localidad === 'string' ? m.envio_localidad : '',
+      // B1 (16-nov): la provincia viaja aparte — ver contrato pendiente
+      // del lado de Malvinas en DESIGN.md.
+      envioProvincia: typeof m.envio_provincia === 'string' ? m.envio_provincia : '',
       envioMonto: Number.isFinite(Number(m.envio_monto)) ? Number(m.envio_monto) : null,
     }),
   }).catch(() => null);

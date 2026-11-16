@@ -22,7 +22,8 @@
     "test:celular-e2e": "playwright test tests/celular.spec.ts",
     "test:c2-modalidad": "playwright test tests/c2-modalidad.spec.ts",
     "test:c3-colegio": "playwright test tests/c3-colegio.spec.ts",
-    "test:c4-transferencia": "playwright test tests/c4-transferencia.spec.ts"
+    "test:c4-transferencia": "playwright test tests/c4-transferencia.spec.ts",
+    "test:b1-envio-pais": "playwright test tests/b1-envio-pais.spec.ts"
   },
   "dependencies": {
     "next": "^14.2.15",

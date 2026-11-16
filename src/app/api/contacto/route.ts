@@ -27,10 +27,14 @@ export async function POST(req: NextRequest) {
   // corrupto) se ignora en silencio — nunca frena el guardado de contacto.
   const retiroModo = normalizarRetiroModo(body?.retiroModo);
   const retiroLugar = typeof body?.retiroLugar === 'string' ? body.retiroLugar.trim().slice(0, 80) : '';
-  // Ya vino RESUELTA desde el navegador (buscarTarifa contra el mismo
-  // tarifario vivo) — Malvinas la vuelve a resolver igual, esto es solo
-  // para que el guardado no se quede mudo mientras el paciente escribe.
+  // Localidad en texto libre (B1, 16-nov: ya no se matchea contra ningún
+  // tarifario) + provincia, que es de lo único que depende el monto
+  // ($15.000 Córdoba / $17.000 resto del país — ver tarifaEnvio() en
+  // @/lib/envios y el contrato pendiente del lado de Malvinas en
+  // DESIGN.md). Esto es solo para que el guardado no se quede mudo
+  // mientras el paciente escribe.
   const envioLocalidad = typeof body?.envioLocalidad === 'string' ? body.envioLocalidad.trim().slice(0, 80) : '';
+  const envioProvincia = typeof body?.envioProvincia === 'string' ? body.envioProvincia.trim().slice(0, 60) : '';
   const envioMonto = typeof body?.envioMonto === 'number' && Number.isFinite(body.envioMonto) ? body.envioMonto : null;
   const tipo: 'contado' | 'cuotas' = body?.tipo === 'cuotas' ? 'cuotas' : 'contado';
 
@@ -62,6 +66,7 @@ export async function POST(req: NextRequest) {
       retiroModo,
       retiroLugar,
       envioLocalidad,
+      envioProvincia,
       envioMonto,
       tipo,
       totalEsperado,

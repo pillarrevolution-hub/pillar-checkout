@@ -9,7 +9,7 @@ import {
 } from '@/lib/firma';
 import type { DatosCheckout } from '@/lib/datos';
 import { cuotaDeLista } from '@/lib/precios';
-import { buscarTarifa, tituloLocalidad } from '@/lib/envios';
+import { tarifaEnvio, tituloLocalidad } from '@/lib/envios';
 import { descripcionRecibo, type ReciboElegido } from '@/lib/mensajes';
 import { RETIRO_LUGAR_BADRA } from '@/lib/farmaciaBadra';
 import { proximoRepartoColegio, fechaRepartoTexto } from '@/lib/colegioFechas';
@@ -21,8 +21,9 @@ import Paso4Pagar from './checkout/Paso4Pagar';
 // ---------------------------------------------------------------
 // Checkout PILL.AR v3 — UNA sola versión (decisión de Tomi): Home + paso
 // a paso de 4 pantallas. Retiro en Farmacia RED / Colegio de
-// Farmacéuticos, envío a domicilio por localidad con precio al instante
-// (tarifario vivo de Malvinas), sin fecha de entrega. `history.pushState`
+// Farmacéuticos, envío a domicilio a todo el país con tarifa plana por
+// provincia (B1, 16-nov: $15.000 Córdoba / $17.000 resto, ver
+// `tarifaEnvio()` en @/lib/envios), sin fecha de entrega. `history.pushState`
 // por paso para que el botón "atrás" del celular funcione. Todo el estado
 // del paso a paso vive en UN reducer (v3.1) que se guarda en
 // sessionStorage en cada cambio — un refresh accidental no pierde nada
@@ -49,6 +50,11 @@ type Estado = {
   farmaciaRed: string;
   colegioLocalidad: string;
   envioLocalidadTexto: string;
+  // B1 (16-nov): provincia del domicilio de envío — la resuelve Google
+  // (DireccionCombobox) o el `<select>` de Plan B en Paso1Recibir. Único
+  // dato del que depende el precio del envío (ver tarifaEnvio en
+  // @/lib/envios); null hasta que se resuelve de una forma u otra.
+  provincia: string | null;
   calle: string;
   // Verificación de dirección con Google Places (v3.2, tema 2/3):
   // direccionVerificada nunca bloquea nada, solo decide si
@@ -72,6 +78,7 @@ const ESTADO_INICIAL: Estado = {
   farmaciaRed: '',
   colegioLocalidad: '',
   envioLocalidadTexto: '',
+  provincia: null,
   calle: '',
   direccionVerificada: false,
   direccionConfirmadaTexto: '',
@@ -117,6 +124,9 @@ function reducerPaso(estado: Estado, accion: Accion): Estado {
       return {
         ...estado,
         envioLocalidadTexto: accion.valor,
+        // Nueva localidad → la provincia vieja ya no vale nada (puede
+        // ser otra, aunque Google no haya vuelto a correr todavía).
+        provincia: null,
         ...(huboDireccion ? { calle: '', direccionVerificada: false, direccionConfirmadaTexto: '' } : {}),
       };
     }
@@ -127,6 +137,7 @@ function reducerPaso(estado: Estado, accion: Accion): Estado {
             ...estado,
             recibe: 'retiro',
             envioLocalidadTexto: '',
+            provincia: null,
             calle: '',
             direccionVerificada: false,
             direccionConfirmadaTexto: '',
@@ -180,6 +191,7 @@ export default function Checkout({
     farmaciaRed,
     colegioLocalidad,
     envioLocalidadTexto,
+    provincia,
     calle,
     direccionVerificada,
     direccionConfirmadaTexto,
@@ -212,27 +224,11 @@ export default function Checkout({
   // "Usar {localidadGoogle}": la dirección seguía siendo la correcta,
   // solo estaba etiquetada con otra localidad — cambia la localidad
   // SIN pasar por 'cambiarLocalidadEnvio' (que limpiaría la dirección
-  // que el combobox ya marcó como verificada).
-  //
-  // C3 (impeccable, 14-sep): este cambio de localidad puede cambiar
-  // cuánto paga el paciente por el envío — el botón que dispara esto ya
-  // muestra el precio nuevo ANTES de tocarlo (DireccionCombobox), pero
-  // acá además se compara contra el precio ANTERIOR (el de la localidad
-  // que el paciente había tipeado) para decidir si hace falta resaltar
-  // la caja de precio y anunciarlo — si no cambió (p. ej. envioAdentro,
-  // que siempre da $0), no se avisa nada: un aviso que nunca cambia
-  // enseña a ignorar los avisos.
+  // que el combobox ya marcó como verificada). La provincia (y, con
+  // ella, el precio) la actualiza el combobox aparte, vía `setProvincia`
+  // — ver el aviso de precio actualizado más abajo.
   function usarLocalidadGoogle(localidadCanonica: string) {
-    const tarifaNueva = buscarTarifa(localidadCanonica, tarifas);
-    const montoAnterior = payload.envioAdentro ? 0 : (tarifaEncontrada ? tarifaEncontrada.m : null);
-    const montoNuevo = payload.envioAdentro ? 0 : (tarifaNueva ? tarifaNueva.m : null);
-    // localidadCanonica viene de TarifaEnvio.l — MAYÚSCULAS, como está
-    // en el tarifario. El campo de localidad siempre muestra el nombre
-    // prolijo (mismo criterio que el datalist de sugerencias).
     campo('envioLocalidadTexto', tituloLocalidad(localidadCanonica));
-    if (montoNuevo !== null && montoNuevo !== montoAnterior) {
-      setAvisoPrecioActualizado(formatoPeso(montoNuevo));
-    }
   }
 
   // Se apaga sola: el resaltado y el anuncio son un instante, no un
@@ -243,6 +239,23 @@ export default function Checkout({
     const t = setTimeout(() => setAvisoPrecioActualizado(null), 4000);
     return () => clearTimeout(t);
   }, [avisoPrecioActualizado]);
+
+  // B1 (16-nov): el precio de envío depende solo de la provincia — si
+  // cambia DESPUÉS de haberse mostrado una vez (ej.: "Usar {localidad}"
+  // resuelve una provincia distinta a la tipeada), se resalta la caja de
+  // precio y se anuncia, igual que hacía antes el cambio de localidad.
+  // Si todavía no se mostró ningún precio (primera vez que se resuelve),
+  // no hay "antes" contra qué comparar — no se avisa nada.
+  const montoEnvioAnteriorRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (recibe !== 'envio') return;
+    const montoNuevo = payload.envioAdentro ? 0 : tarifaEnvio(provincia);
+    const anterior = montoEnvioAnteriorRef.current;
+    if (anterior !== null && montoNuevo !== null && montoNuevo !== anterior) {
+      setAvisoPrecioActualizado(formatoPeso(montoNuevo));
+    }
+    montoEnvioAnteriorRef.current = montoNuevo;
+  }, [recibe, provincia, payload.envioAdentro]);
 
   // Hasta que el borrador se restaure (o se confirme que no había
   // ninguno), no sabemos qué paso mostrar: mientras tanto se pinta un
@@ -310,16 +323,16 @@ export default function Checkout({
   }
   const volver = () => window.history.back();
 
-  const tarifas = payload.envios?.tarifas ?? [];
   const localidades = payload.localidades ?? [];
-  const tarifaEncontrada = recibe === 'envio' ? buscarTarifa(envioLocalidadTexto, tarifas) : null;
+  // B1 (16-nov): sin tarifario — el monto sale solo de la provincia.
+  const montoEnvioCalculado = recibe === 'envio' ? tarifaEnvio(provincia) : null;
 
   const eleccion: EleccionEnvio = useMemo(() => {
-    if (recibe === 'envio' && tarifaEncontrada) {
-      return { modo: 'envio', monto: payload.envioAdentro ? 0 : tarifaEncontrada.m };
+    if (recibe === 'envio' && montoEnvioCalculado !== null) {
+      return { modo: 'envio', monto: payload.envioAdentro ? 0 : montoEnvioCalculado };
     }
     return { modo: 'retiro' };
-  }, [recibe, tarifaEncontrada, payload.envioAdentro]);
+  }, [recibe, montoEnvioCalculado, payload.envioAdentro]);
 
   const li = listaDerivada(payload);
   if (Math.abs(payload.li - li) > 1) {
@@ -339,7 +352,7 @@ export default function Checkout({
 
   const direccionEnvioCompleta = useMemo(() => {
     if (recibe !== 'envio') return '';
-    const localidadDisplay = tarifaEncontrada ? tituloLocalidad(tarifaEncontrada.l) : envioLocalidadTexto.trim();
+    const localidadDisplay = tituloLocalidad(envioLocalidadTexto.trim());
     const base = [
       calle.trim(),
       piso.trim(),
@@ -353,12 +366,12 @@ export default function Checkout({
     // Google no pudo confirmar. Verificada, no se le agrega nada.
     if (base && !direccionVerificada) return `${base} ⚠ Dirección sin verificar`;
     return base;
-  }, [recibe, calle, piso, cp, referencias, tarifaEncontrada, envioLocalidadTexto, direccionVerificada]);
+  }, [recibe, calle, piso, cp, referencias, envioLocalidadTexto, direccionVerificada]);
 
   const direccionCorta = useMemo(() => {
-    const localidadDisplay = tarifaEncontrada ? tituloLocalidad(tarifaEncontrada.l) : envioLocalidadTexto.trim();
+    const localidadDisplay = tituloLocalidad(envioLocalidadTexto.trim());
     return [calle.trim(), piso.trim()].filter(Boolean).join(' ').concat(localidadDisplay ? `, ${localidadDisplay}` : '');
-  }, [calle, piso, tarifaEncontrada, envioLocalidadTexto]);
+  }, [calle, piso, envioLocalidadTexto]);
 
   // Próximo reparto del Colegio de Farmacéuticos según el calendario CFC
   // fijo — depende solo de la fecha de HOY (server), nunca de la
@@ -391,7 +404,11 @@ export default function Checkout({
   // reintente solo) y prende el aviso ámbar; nunca bloquea avanzar.
   async function guardarContacto() {
     const cel = celular.trim();
-    const envioLocalidadEnviar = recibe === 'envio' && tarifaEncontrada ? tarifaEncontrada.l : '';
+    const envioLocalidadEnviar = recibe === 'envio' && envioLocalidadTexto.trim() ? tituloLocalidad(envioLocalidadTexto.trim()) : '';
+    // B1: la provincia viaja APARTE de la localidad — es lo único de lo
+    // que depende el monto del lado del server (ver DESIGN.md, contrato
+    // pendiente del lado de Malvinas).
+    const envioProvinciaEnviar = recibe === 'envio' ? (provincia ?? '') : '';
     const retiroModoEnviar: RetiroModo = recibe === 'retiro' ? retiroModo : '';
     const retiroLugarEnviar =
       retiroModoEnviar === 'red'
@@ -402,10 +419,18 @@ export default function Checkout({
             ? RETIRO_LUGAR_BADRA
             : '';
     const tipoEnviar = pago === 'cuotas' ? 'cuotas' : 'contado';
-    const envioMontoEnviar = envioLocalidadEnviar ? (payload.envioAdentro ? 0 : (tarifaEncontrada?.m ?? 0)) : null;
+    const envioMontoEnviar = envioLocalidadEnviar ? (payload.envioAdentro ? 0 : (montoEnvioCalculado ?? 0)) : null;
 
     if (!cel && !direccionParaGuardar && !envioLocalidadEnviar && !retiroModoEnviar) return;
-    const clave = JSON.stringify([cel, direccionParaGuardar, envioLocalidadEnviar, retiroModoEnviar, retiroLugarEnviar, tipoEnviar]);
+    const clave = JSON.stringify([
+      cel,
+      direccionParaGuardar,
+      envioLocalidadEnviar,
+      envioProvinciaEnviar,
+      retiroModoEnviar,
+      retiroLugarEnviar,
+      tipoEnviar,
+    ]);
     if (clave === ultimoContacto.current) return;
 
     try {
@@ -417,6 +442,7 @@ export default function Checkout({
           celular: cel,
           direccion: direccionParaGuardar,
           envioLocalidad: envioLocalidadEnviar,
+          envioProvincia: envioProvinciaEnviar,
           envioMonto: envioMontoEnviar,
           retiroModo: retiroModoEnviar,
           retiroLugar: retiroLugarEnviar,
@@ -512,7 +538,8 @@ export default function Checkout({
                   ? RETIRO_LUGAR_BADRA
                   : colegioLocalidad.trim()
               : '',
-          envioLocalidad: recibe === 'envio' && tarifaEncontrada ? tarifaEncontrada.l : '',
+          envioLocalidad: recibe === 'envio' && envioLocalidadTexto.trim() ? tituloLocalidad(envioLocalidadTexto.trim()) : '',
+          envioProvincia: recibe === 'envio' ? (provincia ?? '') : '',
           tipo: pago === 'cuotas' ? 'cuotas' : 'contado',
           celular: celular.trim(),
           direccionTexto: recibe === 'envio' ? direccionCorta : '',
@@ -562,7 +589,6 @@ export default function Checkout({
         onReintentarContacto={guardarContacto}
         onElegirRecibe={(r) => dispatch({ type: 'elegirRecibe', valor: r })}
         onElegirRetiroModo={(m) => dispatch({ type: 'elegirRetiroModo', valor: m })}
-        tarifas={tarifas}
         leyendaEnvio={payload.envios?.leyenda ?? ''}
         envioAdentro={payload.envioAdentro}
         localidades={localidades}
@@ -574,6 +600,8 @@ export default function Checkout({
         envioLocalidadTexto={envioLocalidadTexto}
         setEnvioLocalidadTexto={cambiarLocalidadEnvio}
         avisoLocalidadCambiada={avisoLocalidadCambiada}
+        provincia={provincia}
+        setProvincia={(v) => campo('provincia', v)}
         calle={calle}
         setCalle={(v) => {
           setAvisoLocalidadCambiada(false);
@@ -632,7 +660,7 @@ export default function Checkout({
         ? 'Tratamiento (retiro sin cargo)'
         : payload.envioAdentro
           ? 'Tratamiento (envío incluido en el precio)'
-          : `Tratamiento + envío a ${tarifaEncontrada ? tituloLocalidad(tarifaEncontrada.l) : ''}`;
+          : `Tratamiento + envío a ${tituloLocalidad(envioLocalidadTexto.trim())}`;
     contenido = (
       <Paso3Pago
         cotizacion={payload.o}
