@@ -20,11 +20,14 @@ import { linkCheckoutTest } from './helpers';
 // /api/direcciones/detalle), no solo el síntoma visual: si el fix se
 // revierte, tiene que fallar.
 
-async function irAPaso2Envio(page: Page) {
-  await page.goto(linkCheckoutTest());
-  await page.getByRole('button', { name: /pagar mi tratamiento/i }).click();
-  await page.getByRole('radio', { name: /me lo mandan a casa/i }).click();
-  await page.getByRole('button', { name: /^siguiente$/i }).click();
+// C2 (14-nov): el campo de dirección ya no vive en un Paso 2 aparte —
+// se despliega en el mismo Paso 1, dentro del acordeón de "Envío a
+// domicilio". Cotización 166 es la única del stub con `envios`
+// habilitado (ver scripts/stub-malvinas.mjs).
+async function irAPaso1Envio(page: Page) {
+  await page.goto(linkCheckoutTest(166));
+  await page.getByRole('button', { name: /continuar con mi tratamiento/i }).click();
+  await page.getByRole('radio', { name: /envío a domicilio/i }).click();
   await page.waitForSelector('#envio-localidad');
   await page.fill('#envio-localidad', 'Córdoba');
   await page.waitForSelector('#calle:not([disabled])', { timeout: 8_000 });
@@ -32,7 +35,7 @@ async function irAPaso2Envio(page: Page) {
 
 test.describe('Dirección verificada — no se revierte sola', () => {
   test('elegir una localidad distinta y usarla deja la dirección verificada 8s después, con UNA sola llamada a /detalle', async ({ page }) => {
-    await irAPaso2Envio(page);
+    await irAPaso1Envio(page);
 
     const llamadasDetalle: Request[] = [];
     page.on('request', (r) => {
