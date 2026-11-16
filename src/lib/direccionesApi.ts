@@ -8,15 +8,16 @@ import { fetchConTimeoutYReintento } from './googleFetch.ts';
 import { armarInputAutocomplete, leerDireccionGoogle } from './direcciones.ts';
 
 const TIMEOUT_MS = 4000;
-// Fallback del centro del sesgo geográfico cuando no tenemos coordenadas
-// de la localidad (el tarifario no las trae) — Córdoba capital. Es solo
-// un SESGO (no filtra resultados fuera del círculo, el `input` con la
-// localidad ya hace el trabajo pesado), así que el radio importa poco —
-// pero 50.000 m es el TOPE DURO de la API (probado contra Google real:
-// pasarse tira 400 INVALID_ARGUMENT "Radius must be between 0 and
-// 50,000 meters").
-const CORDOBA_CAPITAL = { latitude: -31.4167, longitude: -64.1833 };
-const RADIO_BIAS_METROS = 50000;
+// Sesgo geográfico del autocomplete (B2, 16-nov): antes era un círculo de
+// 50 km alrededor de Córdoba capital — "Rosario", "Mendoza" o "Ushuaia"
+// casi no aparecían. Es solo un SESGO (no filtra resultados fuera del
+// rectángulo, el `input` con la localidad + `includedRegionCodes: ['ar']`
+// ya hacen el trabajo pesado), así que ahora es un rectángulo que cubre
+// toda la Argentina de punta a punta (incluye Tierra del Fuego).
+const ARGENTINA_BIAS = {
+  low: { latitude: -55.1, longitude: -73.6 },
+  high: { latitude: -21.8, longitude: -53.6 },
+};
 
 export type RespuestaApi = { status: number; body: unknown };
 
@@ -52,7 +53,7 @@ export async function sugerirDirecciones(params: {
     includedRegionCodes: ['ar'],
     includedPrimaryTypes: ['street_address', 'premise', 'subpremise', 'route'],
     sessionToken,
-    locationBias: { circle: { center: CORDOBA_CAPITAL, radius: RADIO_BIAS_METROS } },
+    locationBias: { rectangle: ARGENTINA_BIAS },
   };
 
   try {
@@ -134,7 +135,7 @@ export async function detalleDireccion(params: {
     }
 
     const data = await res.json();
-    const { calle, altura, localidadGoogle, provinciaGoogle } = leerDireccionGoogle(
+    const { calle, altura, localidadGoogle, provinciaGoogle, codigoPostal } = leerDireccionGoogle(
       Array.isArray(data?.addressComponents) ? data.addressComponents : []
     );
 
@@ -145,6 +146,7 @@ export async function detalleDireccion(params: {
         altura,
         localidadGoogle,
         provinciaGoogle,
+        codigoPostal,
         formateada: data?.formattedAddress ?? '',
         lat: typeof data?.location?.latitude === 'number' ? data.location.latitude : null,
         lng: typeof data?.location?.longitude === 'number' ? data.location.longitude : null,

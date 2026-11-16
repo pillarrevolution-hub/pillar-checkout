@@ -47,6 +47,10 @@ export default function Paso1Recibir({
   setDireccionVerificada,
   direccionConfirmadaTexto,
   setDireccionConfirmadaTexto,
+  faltaAltura,
+  setFaltaAltura,
+  cp,
+  setCp,
   onUsarLocalidadGoogle,
   avisoPrecioActualizado,
   onBlurGuardar,
@@ -81,6 +85,10 @@ export default function Paso1Recibir({
   setDireccionVerificada: (v: boolean) => void;
   direccionConfirmadaTexto: string;
   setDireccionConfirmadaTexto: (v: string) => void;
+  faltaAltura: boolean;
+  setFaltaAltura: (v: boolean) => void;
+  cp: string;
+  setCp: (v: string) => void;
   onUsarLocalidadGoogle: (localidadCanonica: string) => void;
   avisoPrecioActualizado?: string | null;
   onBlurGuardar: () => void;
@@ -122,14 +130,16 @@ export default function Paso1Recibir({
     puedeAvanzar = colegioLocalidadConfirmada;
     falta = 'Elegí una localidad de la lista';
   } else if (recibe === 'envio') {
-    puedeAvanzar = !!envioLocalidadTexto.trim() && calle.trim().length >= 4 && !!provincia;
+    puedeAvanzar = !!envioLocalidadTexto.trim() && calle.trim().length >= 4 && !!provincia && !faltaAltura;
     falta = !envioLocalidadTexto.trim()
       ? 'Falta la localidad de envío'
       : calle.trim().length < 4
         ? 'Falta la calle y el número'
-        : !provincia
-          ? 'Elegí la provincia de destino'
-          : '';
+        : faltaAltura
+          ? 'Falta la altura de la calle'
+          : !provincia
+            ? 'Elegí la provincia de destino'
+            : '';
   } else if (recibe === 'retiro') {
     falta = 'Elegí Córdoba capital o interior de la provincia';
   } else {
@@ -575,6 +585,10 @@ export default function Paso1Recibir({
                 setDireccionVerificada={setDireccionVerificada}
                 direccionConfirmadaTexto={direccionConfirmadaTexto}
                 setDireccionConfirmadaTexto={setDireccionConfirmadaTexto}
+                faltaAltura={faltaAltura}
+                setFaltaAltura={setFaltaAltura}
+                cp={cp}
+                setCp={setCp}
                 onUsarLocalidadGoogle={onUsarLocalidadGoogle}
                 onBlurGuardar={onBlurGuardar}
               />
@@ -582,6 +596,30 @@ export default function Paso1Recibir({
                 El piso, depto, timbre o alguna referencia para la entrega van en "Comentarios", en
                 el próximo paso.
               </p>
+            </div>
+
+            <div>
+              <label className="label-paso" htmlFor="envio-cp">
+                Código postal
+              </label>
+              <input
+                id="envio-cp"
+                className="input-paso"
+                inputMode="numeric"
+                autoComplete="off"
+                placeholder="Ej: 5000"
+                value={cp}
+                onChange={(e) => setCp(e.target.value)}
+                onBlur={onBlurGuardar}
+              />
+              {/* B3 (16-nov): ya no se valida a mano — lo trae Google con
+                  la dirección elegida; si no lo trajo, queda editable y
+                  este aviso es suave (no bloquea "Siguiente"). */}
+              {!cp.trim() && (
+                <p className="mt-1.5 text-[13px] text-[#475569]">
+                  No pudimos completarlo solos — escribilo si lo sabés (no es obligatorio).
+                </p>
+              )}
             </div>
 
             {/* Plan B (B1, 16-nov): si Google todavía no resolvió la

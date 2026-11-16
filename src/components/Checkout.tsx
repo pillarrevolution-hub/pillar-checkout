@@ -64,7 +64,16 @@ type Estado = {
   // para sobrevivir al desmontaje/montaje del paso al volver.
   direccionVerificada: boolean;
   direccionConfirmadaTexto: string;
+  // B3 (16-nov): si Google reconoce la calle pero no trae `street_number`
+  // (una esquina, una plaza), no se puede entregar ahí — el combobox pide
+  // la altura en un campo chico al lado y esto bloquea "Siguiente" hasta
+  // que se complete (ver Paso1Recibir.puedeAvanzar).
+  faltaAltura: boolean;
   piso: string;
+  // B3 (16-nov): código postal — lo trae Google con la dirección elegida
+  // (DireccionCombobox lo escribe acá solo); si no lo trae, queda vacío y
+  // el paciente lo puede escribir a mano en un campo editable, sin que
+  // eso bloquee nada (aviso suave, igual que antes).
   cp: string;
   referencias: string;
   celular: string;
@@ -82,6 +91,7 @@ const ESTADO_INICIAL: Estado = {
   calle: '',
   direccionVerificada: false,
   direccionConfirmadaTexto: '',
+  faltaAltura: false,
   piso: '',
   cp: '',
   referencias: '',
@@ -127,7 +137,9 @@ function reducerPaso(estado: Estado, accion: Accion): Estado {
         // Nueva localidad → la provincia vieja ya no vale nada (puede
         // ser otra, aunque Google no haya vuelto a correr todavía).
         provincia: null,
-        ...(huboDireccion ? { calle: '', direccionVerificada: false, direccionConfirmadaTexto: '' } : {}),
+        ...(huboDireccion
+          ? { calle: '', direccionVerificada: false, direccionConfirmadaTexto: '', faltaAltura: false, cp: '' }
+          : {}),
       };
     }
     case 'elegirRecibe':
@@ -141,6 +153,8 @@ function reducerPaso(estado: Estado, accion: Accion): Estado {
             calle: '',
             direccionVerificada: false,
             direccionConfirmadaTexto: '',
+            faltaAltura: false,
+            cp: '',
           };
     case 'elegirRetiroModo':
       return {
@@ -195,6 +209,7 @@ export default function Checkout({
     calle,
     direccionVerificada,
     direccionConfirmadaTexto,
+    faltaAltura,
     piso,
     cp,
     referencias,
@@ -611,6 +626,10 @@ export default function Checkout({
         setDireccionVerificada={(v) => campo('direccionVerificada', v)}
         direccionConfirmadaTexto={direccionConfirmadaTexto}
         setDireccionConfirmadaTexto={(v) => campo('direccionConfirmadaTexto', v)}
+        faltaAltura={faltaAltura}
+        setFaltaAltura={(v) => campo('faltaAltura', v)}
+        cp={cp}
+        setCp={(v) => campo('cp', v)}
         onUsarLocalidadGoogle={usarLocalidadGoogle}
         avisoPrecioActualizado={avisoPrecioActualizado}
         onBlurGuardar={guardarContacto}
